@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPHURA</title>
+<style>
+  :root {
+    --bg: #0e0f13; --panel: #16181f; --panel2: #1d2029; --line: #2a2e3a;
+    --text: #e9ebf1; --muted: #8b91a1; --accent: #ff5a36; --accent2: #ffb020;
+    --good: #2ecc71; --bad: #ff4d5e; --blue: #4aa3ff; --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; font: 14px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif;
+         background: var(--bg); color: var(--text); }
+  button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--panel2);
+           color: var(--text); border-radius: 8px; padding: 7px 12px; }
+  button:hover:not(:disabled) { border-color: #3c4252; background: #232734; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: #ff6d4d; }
+  button.ghost { background: transparent; }
+  input[type=text], input[type=number] { font: inherit; color: var(--text); background: var(--bg);
+           border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+  input:focus { outline: 2px solid #3c4252; }
+  a { color: var(--blue); }
+
+  header { display: flex; align-items: center; gap: 16px; padding: 12px 20px;
+           border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+  .logo { font-weight: 800; font-size: 18px; letter-spacing: .3px; }
+  .logo span { color: var(--accent); }
+  .pills { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+  .pill { font-size: 12px; padding: 4px 10px; border-radius: 99px; background: var(--panel2);
+          border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .pill.ok::before, .pill.warn::before { content: ""; display: inline-block; width: 7px; height: 7px;
+          border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+  .pill.ok::before { background: var(--good); } .pill.warn::before { background: var(--accent2); }
+
+  .layout { display: grid; grid-template-columns: 270px 1fr; min-height: calc(100vh - 53px); }
+  aside { border-right: 1px solid var(--line); padding: 16px; background: var(--panel); }
+  aside h3 { margin: 18px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .proj { padding: 9px 10px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
+  .proj:hover { background: var(--panel2); }
+  .proj.active { background: var(--panel2); border-color: var(--line); }
+  .proj .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .proj .meta { font-size: 12px; color: var(--muted); }
+  main { padding: 22px 28px 60px; max-width: 1400px; }
+  h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 0 0 12px; }
+  .sub { color: var(--muted); margin-bottom: 18px; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1; }
+  .muted { color: var(--muted); } .small { font-size: 12px; }
+  .err { color: var(--bad); white-space: pre-wrap; }
+
+  .rec { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 8px; border: 1px solid var(--line); margin-bottom: 8px; background: var(--panel2); }
+  .rec .name { font-weight: 600; word-break: break-all; }
+  .badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: .05em; }
+  .b-obs { background: #2a2140; color: #b99bff; }
+  .b-top { background: #3a2410; color: var(--accent2); } .b-strong { background: #10283a; color: var(--blue); }
+  .b-maybe { background: #24262e; color: var(--muted); }
+  .b-meme { background: #f2f2f2; color: #111; } .b-cinematic { background: #222; color: #ddd; border: 1px solid #444; }
+  .b-hype { background: #3a1410; color: var(--accent); }
+
+  .stages { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 12px 0 6px; }
+  .stage { padding: 8px 10px; border-radius: 8px; background: var(--panel2); border: 1px solid var(--line); font-size: 12px; }
+  .stage .bar { height: 4px; border-radius: 4px; background: #2a2e3a; margin-top: 6px; overflow: hidden; }
+  .stage .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .4s; }
+  .stage.done .bar i { background: var(--good); width: 100%; }
+  .stage.done { color: var(--good); }
+  .overall { height: 6px; border-radius: 6px; background: #2a2e3a; overflow: hidden; }
+  .overall i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .4s; }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 8px 0 16px; }
+  .tab { padding: 9px 14px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; }
+  .tab.active { color: var(--text); border-color: var(--accent); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+  .moment { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
+  .moment.rejected { opacity: .5; }
+  .thumb { aspect-ratio: 16/9; background: #000 center/cover no-repeat; position: relative; }
+  .thumb .rank { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.75); padding: 2px 8px; border-radius: 6px; font-weight: 700; }
+  .thumb .when { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,.75); padding: 2px 8px; border-radius: 6px; font-size: 12px; }
+  .moment .body { padding: 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .moment .title { font-weight: 700; }
+  .tags { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tag { font-size: 11px; color: var(--muted); background: var(--panel2); padding: 1px 7px; border-radius: 5px; }
+  .vote { display: flex; gap: 6px; margin-top: auto; padding-top: 6px; }
+  .vote button { padding: 5px 10px; }
+  .vote button.on-good { border-color: var(--good); color: var(--good); }
+  .vote button.on-bad { border-color: var(--bad); color: var(--bad); }
+
+  .styles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 10px 0 14px; }
+  .style { border: 1px solid var(--line); border-radius: 10px; padding: 12px; cursor: pointer; background: var(--panel2); }
+  .style.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .style b { display: block; margin-bottom: 3px; }
+
+  .shorts { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .short { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .short video { width: 100%; display: block; background: #000; max-height: 460px; }
+  .short .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .copyrow { display: flex; gap: 6px; flex-wrap: wrap; }
+  .copyrow button { font-size: 12px; padding: 4px 9px; }
+  .edit { display: flex; flex-direction: column; gap: 5px; padding-top: 6px; border-top: 1px solid var(--line); margin-top: 4px; }
+  .edit input, .edit textarea { width: 100%; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+  .ontext { background: var(--panel2); padding: 1px 6px; border-radius: 5px; }
+  .filters { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .chip { border-radius: 99px; padding: 6px 14px; }
+  .chip span { color: var(--muted); margin-left: 4px; font-size: 12px; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chip.on span { color: rgba(255,255,255,.8); }
+  .aibox { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+  .libbtn { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); color: var(--text); text-decoration: none; flex: 1; min-width: 200px; }
+  .libbtn:hover { border-color: #3c4252; }
+  .b-bad { background: #3a1018; color: var(--bad); }
+  .b-lic { background: #12301f; color: var(--good); } .b-warn { background: #3a2a10; color: var(--accent2); }
+  .musicrow { display: flex; align-items: center; gap: 8px; }
+  .musicrow button { padding: 2px 8px; font-size: 12px; }
+  select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; width: 100%; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .drop { margin-top: 12px; border: 2px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; color: var(--muted); }
+  .drop.over { border-color: var(--accent); color: var(--text); }
+  .empty { text-align: center; padding: 40px; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius); }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #222633;
+           border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--muted); border-top-color: transparent; border-radius: 50%; animation: s 0.8s linear infinite; vertical-align: -2px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  textarea { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; resize: vertical; }
+  #edinspector { max-height: calc(min(62vh, 760px) + 56px); overflow-y: auto; }
+  .edgrid { display: grid; grid-template-columns: minmax(280px, 1fr) 340px; gap: 14px; align-items: start; }
+  .edstage { display: flex; flex-direction: column; align-items: center; }
+  .edframe { position: relative; height: min(62vh, 760px); max-width: 100%; background: #000; border-radius: 8px; overflow: hidden; }
+  .edframe video { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .edtext { position: absolute; inset: 0; pointer-events: none; }
+  .edov { position: absolute; left: 4%; right: 4%; transform: translateY(-50%); text-align: center; pointer-events: auto; cursor: ns-resize; line-height: 1.15;
+    font-family: "Arial Black", Arial, sans-serif; font-weight: 900; -webkit-text-stroke: 0.04em #000; paint-order: stroke fill; }
+  .edov.ed-plain { font-family: Arial, sans-serif; font-weight: 700; }
+  .edov.ed-bar { -webkit-text-stroke: 0; font-family: Arial, sans-serif; font-weight: 700; }
+  .edov.on { outline: 2px dashed var(--accent); outline-offset: 4px; }
+  .edsz { position: absolute; right: -12px; bottom: -12px; width: 14px; height: 14px; background: var(--accent); border: 2px solid #fff; border-radius: 3px; cursor: nwse-resize; }
+  .edtl { overflow-x: auto; position: relative; padding-bottom: 6px; }
+  .edinner { position: relative; padding-left: 0; }
+  .edruler { position: relative; height: 22px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .edruler span { position: absolute; top: 3px; font-size: 11px; color: var(--muted); transform: translateX(2px); }
+  .edtrack { position: relative; margin-top: 18px; border-radius: 6px; background: #151821; }
+  .edlab { position: absolute; left: 2px; top: -15px; font-size: 10px; color: var(--muted); z-index: 0; }
+  .edblk { position: absolute; top: 4px; height: 26px; border-radius: 5px; font-size: 12px; overflow: hidden; white-space: nowrap; display: flex; align-items: center; cursor: grab; user-select: none; }
+  .edblk span { padding: 0 10px; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+  .edblk.seg { background: #2b3550; border: 1px solid #3d4a70; }
+  .edblk.teaser { background: #3a2410; color: var(--accent2); border: 1px dashed #6a4520; padding-left: 6px; cursor: default; }
+  .edblk.txt { height: 22px; background: #3a1f4a; border: 1px solid #6b3d87; }
+  .edblk.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .edblk .h { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: rgba(255,255,255,.12); }
+  .edblk .h.l { left: 0; } .edblk .h.r { right: 0; }
+  .edph { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); pointer-events: none; }
+  .edrow { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .edrow label { width: 64px; font-size: 13px; color: var(--muted); }
+  .edrow input[type=number] { width: 72px; }
+  @media (max-width: 1100px) { .edgrid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">SPHU<span>RA</span></div>
+  <div class="pills" id="pills"></div>
+</header>
+<div class="layout">
+  <aside>
+    <button class="primary" style="width:100%" onclick="showNew()">+ New stream</button>
+    <button style="width:100%; margin-top:8px" onclick="showDownloads('queue')">⬇ Downloads</button>
+    <button style="width:100%; margin-top:8px" onclick="showMusic()">♪ Music</button>
+    <h3>Your streams</h3>
+    <div id="projects"><div class="muted small">Loading…</div></div>
+  </aside>
+  <main id="main"></main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const STAGES = [
+  ["extract_audio", "Audio"], ["transcribe", "Speech"], ["signals", "Action"],
+  ["judge", "AI judging"], ["compare", "Ranking"],
+];
+const STYLE_INFO = {
+  meme: ["Meme caption", "~10 s, white caption bar with a reaction line. 3:4"],
+  cinematic: ["Cinematic edit", "~20 s, dark grade, glitch cuts, music on the beat. Square"],
+  hype: ["Hype edit", "Cold open, zooms, shake, slow-mo, sound effects. 9:16"],
+};
+let state = { styleFilter: localStorage.getItem("cf_style_filter") || "all", project: null, tab: location.hash === "#shorts" ? "shorts" : "moments", timer: null, styles: new Set(["meme", "cinematic"]) };
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; }
+function hms(t) { t = Math.max(0, Math.round(t)); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s).padStart(2, "0"); }
+function size(b) { return b > 1e9 ? (b / 1e9).toFixed(2) + " GB" : (b / 1e6).toFixed(0) + " MB"; }
+function ago(sec) { const d = (Date.now() / 1000 - sec); if (d < 3600) return Math.max(1, Math.round(d / 60)) + " min ago";
+  if (d < 86400) return Math.round(d / 3600) + " h ago"; return Math.round(d / 86400) + " days ago"; }
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2200); }
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts,
+    body: opts.body ? JSON.stringify(opts.body) : undefined });
+  if (!r.ok) { let m = r.statusText; try { m = (await r.json()).detail || m; } catch {} throw new Error(m); }
+  return r.json();
+}
+
+async function loadStatus() {
+  try {
+    const s = await api("/v1/system/status");
+    const pills = [];
+    pills.push(s.ai.problem ? `<span class="pill warn" title="${esc(s.ai.problem)}">AI judge: off</span>`
+                            : `<span class="pill ok">AI: ${esc(s.ai.name)}${s.ai.local ? " (local)" : ""}</span>`);
+    pills.push(`<span class="pill ok" style="cursor:pointer" onclick="showMusic()" title="SPHURA makes original music for each Short">Music: ${s.music.ai ? "AI music" : "SPHURA scores"}${s.music.tracks ? ` + ${s.music.tracks} track${s.music.tracks > 1 ? "s" : ""}` : ""}</span>`);
+    if (s.encoders.length) pills.push(`<span class="pill ok">Encoder: ${esc(s.encoders[0].replace("h264_", "").toUpperCase())}</span>`);
+    $("#pills").innerHTML = pills.join("");
+  } catch (e) { $("#pills").innerHTML = `<span class="pill warn">${esc(e.message)}</span>`; }
+}
+
+async function loadProjects() {
+  const ps = await api("/v1/projects");
+  $("#projects").innerHTML = ps.length ? ps.map(p => `
+    <div class="proj ${state.project?.id === p.id ? "active" : ""}" onclick="openProject('${p.id}')">
+      <div class="name" title="${esc(p.name)}">${esc(p.name)}</div>
+      <div class="meta">${new Date(p.created_at).toLocaleDateString()}</div>
+    </div>`).join("") : `<div class="muted small">No streams yet.</div>`;
+  return ps;
+}
+
+// ---------- New stream ----------
+async function showNew() {
+  leaveDownloads();
+  stopPolling(); state.project = null; loadProjects();
+  $("#main").innerHTML = `
+    <h1>New stream</h1>
+    <div class="sub">Pick a recording. SPHURA finds the best moments, then you choose how to cut them.</div>
+    <div class="card">
+      <h2>Paste a file path</h2>
+      <div class="row"><input type="text" id="path" class="grow" placeholder='D:\\stream\\my recording.mp4'>
+        <button class="ghost" onclick="browseVideo(this)">Browse…</button>
+        <button class="primary" onclick="processPath($('#path').value.trim().replace(/^\\"|\\"$/g, ''))">Process</button></div>
+    </div>
+    <div class="card row">
+      <div class="grow"><h2 style="margin:0">Or use a YouTube video or playlist</h2>
+        <div class="small muted">Download it in Downloads, then click Edit video.</div></div>
+      <button class="primary" onclick="showDownloads('queue')">Open Downloads</button>
+    </div>
+    <div class="card">
+      <h2>Recent recordings</h2>
+      <div id="recent"><span class="spin"></span> <span class="muted">Looking in your OBS folder, Videos, Downloads and other drives…</span></div>
+    </div>`;
+  try {
+    const vids = await api("/v1/library/recent");
+    $("#recent").innerHTML = vids.length ? vids.map(v => `
+      <div class="rec">
+        <div class="grow"><div class="name">${esc(v.name)} ${v.from_obs ? '<span class="badge b-obs">OBS</span>' : ""}</div>
+          <div class="small muted">${esc(v.folder)} · ${size(v.size_bytes)} · ${ago(v.modified)}</div></div>
+        <button class="primary" data-path="${esc(v.path)}" onclick="processPath(this.dataset.path)">Process</button>
+      </div>`).join("") : `<div class="muted">No recordings found. Paste a path or use Browse above.</div>`;
+  } catch (e) { $("#recent").innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+}
+
+async function browseVideo(btn) {
+  btn.disabled = true;
+  try { const r = await api("/v1/library/choose-file", { method: "POST" }); if (r.path) $("#path").value = r.path; }
+  catch (e) { toast(e.message); }
+  finally { btn.disabled = false; }
+}
+
+async function processPath(path) {
+  if (!path) return toast("Enter a file path first");
+  try {
+    toast("Registering the recording…");
+    const r = await api("/v1/ingest", { method: "POST", body: { path } });
+    await api(`/v1/projects/${r.project.id}/analyze`, { method: "POST", body: {} });
+    await loadProjects();
+    openProject(r.project.id);
+  } catch (e) { toast("Error: " + e.message); }
+}
+
+// ---------- Downloads ----------
+const ED = { not_edited: ["Not edited", "b-maybe"], analysing: ["Analysing", "b-strong"], analysed: ["Ready for Shorts", "b-top"],
+  shorts: ["Shorts made", "b-lic"], analysis_failed: ["Analysis failed", "b-warn"] };
+const DST = { queued: ["Queued", "b-maybe"], downloading: ["Downloading", "b-strong"], paused: ["Paused", "b-warn"],
+  failed: ["Failed", "b-bad"], cancelled: ["Cancelled", "b-maybe"] };
+const QLABEL = { best: "Best available", 2160: "2160p (4K)", 1440: "1440p", 1080: "1080p", 720: "720p", 480: "480p" };
+const FNAMES = { title_id: "Title [video id]", title: "Title", channel_title: "Channel - Title", date_title: "Date Title" };
+function hms(s) { s = Math.round(s || 0); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}` : `${m}:${String(x).padStart(2, "0")}`; }
+function speed(b) { return b ? (b > 1e6 ? (b / 1e6).toFixed(1) + " MB/s" : (b / 1e3).toFixed(0) + " KB/s") : ""; }
+function eta(s) { if (s == null) return ""; s = Math.round(s); return s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.floor(s % 3600 / 60)} min left` : s >= 60 ? `${Math.floor(s / 60)} min ${s % 60} s left` : `${s} s left`; }
+function res(d) { return d.height ? `${d.height}p${d.fps > 31 ? Math.round(d.fps) : ""}` : ""; }
+function dlThumb(d) { return d.thumbnail_path || d.thumbnail_url ? `/v1/downloads/${d.id}/thumb.jpg` : ""; }
+
+async function showDownloads(tab) {
+  stopPolling(); state.project = null; loadProjects();
+  state.dl = { tab: tab || state.dl?.tab || "queue", sig: {}, playing: null, confirm: null, data: null };
+  history.replaceState(null, "", state.dl.tab === "library" ? "#downloads/library" : "#downloads");
+  $("#main").innerHTML = `<div class="row"><h1 class="grow">Downloads</h1><button onclick="dlToggleSettings()">⚙ Settings</button></div>
+    <div class="sub">Download your YouTube videos and playlists, then turn them into Shorts. Only download videos you own or have permission to use.</div>
+    <div id="dlsetup"></div><div id="dlsettings" hidden></div>
+    <div class="tabs"><div class="tab" id="t-queue" onclick="dlTab('queue')">Download queue</div>
+      <div class="tab" id="t-library" onclick="dlTab('library')">Downloaded videos</div></div>
+    <div id="dl-queue">
+      <div class="card"><h2>Add from YouTube</h2>
+        <div class="row"><label class="small muted" style="width:90px">Video link</label><input type="text" id="dlvideo" class="grow" placeholder="https://www.youtube.com/watch?v=…" onkeydown="if(event.key==='Enter')dlPreview(false)">
+          <button class="primary" onclick="dlPreview(false)">Continue</button></div>
+        <div class="row" style="margin-top:8px"><label class="small muted" style="width:90px">Playlist link</label><input type="text" id="dlplaylist" class="grow" placeholder="https://www.youtube.com/playlist?list=…" onkeydown="if(event.key==='Enter')dlPreview(true)">
+          <button class="primary" onclick="dlPreview(true)">Continue</button></div>
+        <div id="dlpreview"></div></div>
+      <div id="dlqueue"></div></div>
+    <div id="dl-library" hidden>
+      <div class="card row">
+        <input type="text" id="dlsearch" class="grow" placeholder="Search by title" oninput="dlRenderLibrary(true)">
+        <select id="dlsort" style="width:auto" onchange="dlRenderLibrary(true)">
+          <option value="date_desc">Newest first</option><option value="date_asc">Oldest first</option>
+          <option value="dur_desc">Longest</option><option value="dur_asc">Shortest</option>
+          <option value="size_desc">Largest</option><option value="size_asc">Smallest</option></select>
+        <select id="dlfilter" style="width:auto" onchange="dlRenderLibrary(true)"><option value="">All videos</option>
+          ${Object.entries(ED).map(([k, [l]]) => `<option value="${k}">${l}</option>`).join("")}</select></div>
+      <div id="dllibrary"></div></div>`;
+  dlTab(state.dl.tab);
+  dlPoll();
+}
+
+function dlTab(t) {
+  state.dl.tab = t;
+  history.replaceState(null, "", t === "library" ? "#downloads/library" : "#downloads");
+  $("#t-queue").classList.toggle("active", t === "queue"); $("#t-library").classList.toggle("active", t === "library");
+  $("#dl-queue").hidden = t !== "queue"; $("#dl-library").hidden = t !== "library";
+}
+
+async function dlPoll() {
+  if (!state.dl || !$("#dlqueue")) return;
+  try {
+    const data = await api("/v1/downloads"); state.dl.data = data;
+    dlRenderSetup(data);
+    const queue = data.items.filter(d => d.status !== "completed"), lib = data.items.filter(d => d.status === "completed");
+    $("#t-queue").innerHTML = `Download queue${queue.length ? ` <span class="muted">${queue.length}</span>` : ""}`;
+    $("#t-library").innerHTML = `Downloaded videos${lib.length ? ` <span class="muted">${lib.length}</span>` : ""}`;
+    dlRenderQueue(queue); dlRenderLibrary(false);
+    if (!$("#dlsettings").hidden && !$("#dlsettings").innerHTML) dlRenderSettings();
+    const busy = queue.some(d => d.status === "downloading" || d.status === "queued") || data.setup.running
+      || lib.some(d => d.editing === "analysing");
+    state.timer = setTimeout(dlPoll, busy ? 1000 : 4000);
+  } catch (e) { $("#dlqueue").innerHTML = `<div class="card err">${esc(e.message)}</div>`; state.timer = setTimeout(dlPoll, 4000); }
+}
+
+function dlRenderSetup(data) {
+  const el = $("#dlsetup");
+  if (data.ready) { el.innerHTML = ""; return; }
+  const s = data.setup;
+  el.innerHTML = `<div class="card">${s.running ? ytBar(s.step, s.progress) : `<div class="row"><div class="grow"><b>One-time setup</b>
+    <div class="small muted">SPHURA downloads the official yt-dlp and Deno (about 65 MB) into its own folder. Nothing is installed on your system.</div>
+    ${s.error ? `<div class="err">${esc(s.error)}</div>` : ""}</div><button class="primary" onclick="dlTools()">Turn on YouTube downloads</button></div>`}</div>`;
+}
+function ytBar(step, p) { return `<div class="small muted" style="margin-bottom:6px">${esc(step)} · ${Math.round(p * 100)}%</div><div class="overall"><i style="width:${p * 100}%"></i></div>`; }
+async function dlTools() { try { await api("/v1/downloads/tools", { method: "POST" }); stopPolling(); dlPoll(); } catch (e) { toast(e.message); } }
+
+// --- import preview ---
+async function dlPreview(playlist) {
+  const url = $(playlist ? "#dlplaylist" : "#dlvideo").value.trim();
+  if (!url) return toast(playlist ? "Paste a playlist link first" : "Paste a video link first");
+  const box = $("#dlpreview");
+  box.innerHTML = `<div style="margin-top:12px"><span class="spin"></span> <span class="muted">Reading ${playlist ? "the playlist" : "the video's details"} from YouTube…</span></div>`;
+  try {
+    const v = await api("/v1/downloads/preview", { method: "POST", body: { url, playlist } });
+    state.dl.preview = v;
+    v.kind === "playlist" ? dlRenderPlaylist(v) : dlRenderVideo(v);
+  } catch (e) { box.innerHTML = `<div class="err" style="margin-top:10px">${esc(e.message)}</div>`; }
+}
+
+function dlQualitySelect(v) {
+  const def = state.dl.data?.settings.quality || "best";
+  if (v && v.qualities) {
+    const top = v.qualities[0], opt = q => `${q.label}${q.size_bytes ? " · about " + size(q.size_bytes) : ""}`;
+    return `<select id="dlq"><option value="best">Best available${top ? ` (${esc(opt(top))})` : ""}</option>
+      ${v.qualities.map(q => `<option value="${q.value}" ${q.value === def ? "selected" : ""}>${esc(opt(q))}</option>`).join("")}</select>`;
+  }
+  return `<select id="dlq">${Object.entries(QLABEL).map(([k, l]) => `<option value="${k}" ${k === def ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+}
+const RIGHTS = `<label class="small" style="display:block;margin-top:10px"><input type="checkbox" id="dlok"> These are my videos, or I have permission to download and use them</label>`;
+
+function dlRenderVideo(v) {
+  const blocked = v.problem || v.duplicate;
+  $("#dlpreview").innerHTML = `<div class="rec" style="margin-top:12px">
+    ${v.thumbnail ? `<img src="${esc(v.thumbnail)}" style="width:160px;aspect-ratio:16/9;object-fit:cover;border-radius:6px">` : ""}
+    <div class="grow"><div class="name">${esc(v.title)}</div><div class="small muted">${esc(v.channel)} · ${hms(v.duration_s)}</div>
+      ${blocked ? `<div class="small" style="color:var(--accent2);margin-top:6px">${esc(v.problem || v.duplicate)}</div>` : ""}</div></div>
+    <div class="row" style="margin-top:10px"><label class="small" style="white-space:nowrap">Quality</label>${dlQualitySelect(v)}</div>${RIGHTS}
+    <div class="row" style="margin-top:10px"><div class="grow"></div>
+      <button class="primary" id="dlgo" ${blocked ? "disabled" : ""}>${v.problem && v.problem.includes("processing") ? "Waiting for YouTube" : "Add to queue"}</button></div>`;
+  if (!blocked) $("#dlgo").onclick = () => dlAdd([v], null);
+}
+
+function dlRenderPlaylist(p) {
+  const ok = e => !e.unavailable && !e.duplicate;
+  const n = p.entries.filter(ok).length;
+  $("#dlpreview").innerHTML = `<div class="rec" style="margin-top:12px">
+    ${p.thumbnail ? `<img src="${esc(p.thumbnail)}" style="width:160px;aspect-ratio:16/9;object-fit:cover;border-radius:6px">` : ""}
+    <div class="grow"><div class="name">${esc(p.title)}</div><div class="small muted">${esc(p.channel)}${p.channel ? " · " : ""}${p.count} videos · ${n} can be downloaded</div></div></div>
+    <label class="small" style="display:block;margin:10px 0 6px"><input type="checkbox" id="dlall" ${n ? "checked" : "disabled"} onchange="dlSelectAll(this.checked)"> Select all eligible videos</label>
+    <div style="max-height:380px;overflow:auto;border:1px solid var(--line);border-radius:8px">
+    ${p.entries.map((e, i) => `<label class="row" style="padding:8px 10px;border-bottom:1px solid var(--line);${ok(e) ? "" : "opacity:.55"}">
+      <input type="checkbox" class="dlpick" data-i="${i}" ${ok(e) ? "checked" : "disabled"} onchange="dlCount()">
+      ${e.thumbnail ? `<img src="${esc(e.thumbnail)}" loading="lazy" style="width:96px;aspect-ratio:16/9;object-fit:cover;border-radius:4px">` : ""}
+      <div class="grow"><div>${esc(e.title)}</div><div class="small muted">${e.duration_s ? hms(e.duration_s) : ""}${e.channel ? " · " + esc(e.channel) : ""}</div>
+        ${e.unavailable || e.duplicate ? `<div class="small" style="color:${e.unavailable ? "var(--bad)" : "var(--accent2)"}">${esc(e.unavailable || e.duplicate)}</div>` : ""}</div></label>`).join("")}</div>
+    <div class="row" style="margin-top:10px"><label class="small" style="white-space:nowrap">Quality</label>${dlQualitySelect(null)}</div>${RIGHTS}
+    <div class="row" style="margin-top:10px"><div class="grow"></div><button class="primary" id="dlgo" onclick="dlAddPicked()"></button></div>`;
+  dlCount();
+}
+function dlSelectAll(on) { document.querySelectorAll(".dlpick:not(:disabled)").forEach(c => c.checked = on); dlCount(); }
+function dlCount() {
+  const n = document.querySelectorAll(".dlpick:checked").length;
+  $("#dlgo").textContent = n ? `Add ${n} video${n > 1 ? "s" : ""} to queue` : "Select videos";
+  $("#dlgo").disabled = !n;
+}
+function dlAddPicked() {
+  const p = state.dl.preview;
+  dlAdd([...document.querySelectorAll(".dlpick:checked")].map(c => p.entries[+c.dataset.i]), p.title);
+}
+
+async function dlAdd(items, playlistTitle) {
+  if (!$("#dlok").checked) return toast("Tick the permission box first");
+  try {
+    const r = await api("/v1/downloads", { method: "POST", body: { items: items.map(e => ({ id: e.id, title: e.title, channel: e.channel,
+      duration_s: e.duration_s, thumbnail: e.thumbnail })), quality: $("#dlq").value, playlist_title: playlistTitle, confirm_rights: true } });
+    const skip = r.skipped.length ? ` · ${r.skipped.length} skipped (${esc(r.skipped[0].reason.toLowerCase())}${r.skipped.length > 1 ? ", …" : ""})` : "";
+    toast(`${r.added} added to the queue${skip}`);
+    $("#dlpreview").innerHTML = ""; $("#dlvideo").value = ""; $("#dlplaylist").value = "";
+    stopPolling(); dlPoll();
+  } catch (e) { toast(e.message); }
+}
+
+// --- queue ---
+function dlRenderQueue(queue) {
+  const sig = JSON.stringify(queue.map(d => [d.id, d.status, Math.round((d.progress || 0) * 1000), d.speed_bps, d.step, d.error]));
+  if (sig === state.dl.sig.queue) return; state.dl.sig.queue = sig;
+  const el = $("#dlqueue");
+  if (!queue.length) { el.innerHTML = `<div class="card muted">The queue is empty. Paste a video or playlist link above. Finished downloads move to <a href="#" onclick="dlTab('library');return false">Downloaded videos</a>.</div>`; return; }
+  el.innerHTML = `<div class="card"><h2>Queue</h2>${queue.map(d => {
+    const [label, cls] = DST[d.status] || [d.status, "b-maybe"];
+    const live = d.status === "downloading";
+    const detail = live ? [speed(d.speed_bps), eta(d.eta_s), d.total_bytes ? "of " + size(d.total_bytes) : ""].filter(Boolean).join(" · ") : "";
+    const btn = (a, t, p) => `<button ${p ? 'class="primary"' : ""} onclick="dlAct('${d.id}','${a}')">${t}</button>`;
+    const ctl = { downloading: btn("pause", "Pause") + btn("cancel", "Cancel"), queued: btn("pause", "Pause") + btn("remove", "Remove"),
+      paused: btn("resume", "Resume", 1) + btn("cancel", "Cancel") + btn("remove", "Remove"),
+      failed: btn("retry", "Retry", 1) + btn("remove", "Remove"), cancelled: btn("retry", "Retry", 1) + btn("remove", "Remove") }[d.status] || "";
+    return `<div class="rec" style="align-items:flex-start">
+      ${dlThumb(d) ? `<img src="${dlThumb(d)}" style="width:128px;aspect-ratio:16/9;object-fit:cover;border-radius:6px" loading="lazy">` : ""}
+      <div class="grow" style="min-width:0"><div class="name" style="word-break:normal">${esc(d.title)}</div>
+        <div class="small muted">${[esc(d.channel), d.duration_s ? hms(d.duration_s) : "", QLABEL[d.quality] || d.quality + "p"].filter(Boolean).join(" · ")}${d.playlist_title ? " · from " + esc(d.playlist_title) : ""}</div>
+        <div class="row" style="margin-top:8px;gap:8px"><span class="badge ${cls}">${label}</span>
+          <span class="small">${Math.round((d.progress || 0) * 100)}%</span>
+          <span class="small muted">${live ? esc(d.step && !d.step.startsWith("Downloading") ? d.step : "") : ""} ${esc(detail)}</span>
+          ${d.throttled ? `<span class="small" style="color:var(--accent2)">YouTube is throttling this download</span>` : ""}</div>
+        <div class="overall" style="margin-top:6px"><i style="width:${(d.progress || 0) * 100}%"></i></div>
+        ${d.error ? `<div class="err small" style="margin-top:6px">${esc(d.error)}</div>` : ""}</div>
+      <div class="row" style="gap:6px;flex-shrink:0">${ctl}</div></div>`; }).join("")}</div>`;
+}
+
+async function dlAct(id, action) {
+  try { await api(`/v1/downloads/${id}/${action}`, { method: "POST" }); stopPolling(); dlPoll(); } catch (e) { toast(e.message); }
+}
+
+// --- library ---
+function dlRenderLibrary(force) {
+  const data = state.dl.data; if (!data) return;
+  let lib = data.items.filter(d => d.status === "completed");
+  const q = ($("#dlsearch")?.value || "").trim().toLowerCase(), f = $("#dlfilter")?.value, sort = $("#dlsort")?.value || "date_desc";
+  if (q) lib = lib.filter(d => d.title.toLowerCase().includes(q));
+  if (f) lib = lib.filter(d => d.editing === f);
+  const [key, dir] = sort.split("_"), val = d => key === "date" ? d.completed_at : key === "dur" ? d.duration_s : d.size_bytes || 0;
+  lib.sort((a, b) => (val(a) < val(b) ? -1 : val(a) > val(b) ? 1 : 0) * (dir === "asc" ? 1 : -1));
+  const sig = JSON.stringify([q, f, sort, state.dl.playing, state.dl.confirm, lib.map(d => [d.id, d.editing, d.file_exists])]);
+  if (!force && sig === state.dl.sig.library) return; state.dl.sig.library = sig;
+  const el = $("#dllibrary");
+  const all = data.items.filter(d => d.status === "completed").length;
+  if (!lib.length) { el.innerHTML = `<div class="card muted">${all ? "No videos match." : "No downloads yet. Finished downloads appear here."}</div>`; return; }
+  const st = data.storage;
+  el.innerHTML = `<div class="small muted" style="margin-bottom:10px">${lib.length} of ${all} videos · downloads use ${size(st.used_bytes)}${st.free_bytes != null ? ` · ${size(st.free_bytes)} free on this drive` : ""}</div>
+    <div class="grid">${lib.map(d => {
+      const [el2, cls] = ED[d.editing] || ED.not_edited;
+      const media = state.dl.playing === d.id && d.file_exists
+        ? `<video src="/v1/downloads/${d.id}/video" controls autoplay style="width:100%;aspect-ratio:16/9;background:#000;display:block"></video>`
+        : `<div class="thumb" style="background-image:url('${dlThumb(d)}');cursor:${d.file_exists ? "pointer" : "default"}" ${d.file_exists ? `onclick="dlPlay('${d.id}')"` : ""}>
+            ${d.duration_s ? `<span class="when">${hms(d.duration_s)}</span>` : ""}${d.file_exists ? `<span class="rank">▶</span>` : ""}</div>`;
+      const del = state.dl.confirm === d.id
+        ? `<button style="border-color:var(--bad);color:var(--bad)" onclick="dlDelete('${d.id}')">Delete file?</button><button onclick="dlConfirm(null)">Keep</button>`
+        : `<button onclick="dlConfirm('${d.id}')">Delete</button>`;
+      return `<div class="card" style="padding:0;overflow:hidden;margin:0">${media}
+        <div style="padding:12px"><div class="name" style="font-weight:600">${esc(d.title)}</div>
+          <div class="small muted" style="margin:4px 0">${[res(d), d.size_bytes ? size(d.size_bytes) : "", "Downloaded " + new Date(d.completed_at).toLocaleDateString()].filter(Boolean).join(" · ")}</div>
+          <div class="small muted" style="word-break:break-all" title="${esc(d.file_path)}">${esc(d.file_path)}</div>
+          <div style="margin:8px 0"><span class="badge ${cls}">${el2}</span>${d.file_exists ? "" : ` <span class="badge b-bad">File missing</span>`}</div>
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            <button class="primary" ${d.file_exists ? "" : "disabled"} onclick="dlEdit('${d.id}')">${d.project_id ? "Open in editor" : "Edit video"}</button>
+            <button ${d.file_exists ? "" : "disabled"} onclick="dlAct('${d.id}','reveal')">Show in folder</button>${del}</div></div></div>`; }).join("")}</div>`;
+}
+function dlPlay(id) { state.dl.playing = state.dl.playing === id ? null : id; dlRenderLibrary(true); }
+function dlConfirm(id) { state.dl.confirm = id; dlRenderLibrary(true); }
+async function dlDelete(id) {
+  try { await api(`/v1/downloads/${id}/file`, { method: "DELETE" }); state.dl.confirm = null; toast("Deleted. Shorts made from it are kept."); stopPolling(); dlPoll(); }
+  catch (e) { toast(e.message); }
+}
+async function dlEdit(id) {
+  try {
+    toast("Opening in the editor…");
+    const r = await api(`/v1/downloads/${id}/edit`, { method: "POST" });
+    await loadProjects(); openProject(r.project_id);
+  } catch (e) { toast(e.message); }
+}
+
+// --- settings ---
+function dlToggleSettings() { const el = $("#dlsettings"); el.hidden = !el.hidden; if (!el.hidden) dlRenderSettings(); }
+function dlRenderSettings() {
+  const data = state.dl.data; if (!data) { $("#dlsettings").innerHTML = ""; return; }
+  const s = data.settings, st = data.storage;
+  $("#dlsettings").innerHTML = `<div class="card"><h2>Download settings</h2>
+    <div class="small muted" style="margin-bottom:4px">Download folder</div>
+    <div class="row"><input type="text" id="dsfolder" class="grow" value="${esc(s.folder)}"><button onclick="dlChooseFolder()">Choose…</button></div>
+    <div class="small muted" style="margin:4px 0 12px">${st.free_bytes != null ? `${size(st.free_bytes)} free of ${size(st.total_bytes)} on this drive · ` : ""}downloads use ${size(st.used_bytes)}</div>
+    <div class="row" style="gap:16px;align-items:flex-start">
+      <div class="grow"><div class="small muted" style="margin-bottom:4px">Preferred quality</div>
+        <select id="dsq">${Object.entries(QLABEL).map(([k, l]) => `<option value="${k}" ${k === s.quality ? "selected" : ""}>${l}</option>`).join("")}</select>
+        <div class="small muted" style="margin-top:4px">Lower qualities fall back to the nearest one available</div></div>
+      <div class="grow"><div class="small muted" style="margin-bottom:4px">File name</div>
+        <select id="dsname">${Object.entries(FNAMES).map(([k, l]) => `<option value="${k}" ${k === s.filename ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      <div class="grow"><div class="small muted" style="margin-bottom:4px">Downloads at once</div>
+        <select id="dspar">${[1, 2, 3, 4].map(n => `<option ${n === s.parallel ? "selected" : ""}>${n}</option>`).join("")}</select></div></div>
+    <label class="small" style="display:block;margin-top:12px"><input type="checkbox" id="dsthumb" ${s.save_thumbnails ? "checked" : ""}> Save thumbnails with downloads</label>
+    <div class="row" style="margin-top:12px"><div class="grow small muted">Changing the folder doesn't move videos you already downloaded.</div>
+      <button onclick="dlToggleSettings()">Close</button><button class="primary" onclick="dlSaveSettings()">Save</button></div></div>`;
+}
+async function dlChooseFolder() {
+  try { const r = await api("/v1/downloads/settings/choose-folder", { method: "POST" }); if (r.folder) $("#dsfolder").value = r.folder; }
+  catch (e) { toast(e.message); }
+}
+async function dlSaveSettings() {
+  try {
+    await api("/v1/downloads/settings", { method: "PUT", body: { folder: $("#dsfolder").value, quality: $("#dsq").value,
+      filename: $("#dsname").value, parallel: +$("#dspar").value, save_thumbnails: $("#dsthumb").checked } });
+    toast("Settings saved"); $("#dlsettings").hidden = true; stopPolling(); dlPoll();
+  } catch (e) { toast(e.message); }
+}
+
+// ---------- Project ----------
+async function openProject(id) {
+  leaveDownloads();
+  stopPolling();
+  const p = await api(`/v1/projects/${id}`);
+  state.project = p; loadProjects();
+  $("#main").innerHTML = `
+    <h1>${esc(p.name)}</h1>
+    <div class="sub" id="psub"></div>
+    <div class="card" id="pipeline"></div>
+    <div class="tabs">
+      <div class="tab ${state.tab === "moments" ? "active" : ""}" onclick="setTab('moments')">Best moments</div>
+      <div class="tab ${state.tab === "shorts" ? "active" : ""}" onclick="setTab('shorts')">Shorts</div>
+    </div>
+    <div id="tabbody"></div>`;
+  const assets = await api(`/v1/projects/${id}/assets`);
+  if (assets[0]) {
+    const a = assets[0], d = a.media_info?.duration_s;
+    $("#psub").textContent = `${a.source_uri}${d ? " · " + hms(d) : ""} · ${size(a.size_bytes)}`;
+  }
+  refresh();
+}
+function setTab(t) { state.tab = t; document.querySelectorAll(".tab").forEach((el, i) => el.classList.toggle("active", (i === 0) === (t === "moments"))); renderTab(); }
+
+async function refresh() {
+  const id = state.project?.id; if (!id) return;
+  const jobs = await api(`/v1/projects/${id}/jobs`);
+  const an = jobs.filter(j => j.type === "analyze").sort((a, b) => a.created_at < b.created_at ? 1 : -1)[0];
+  renderPipeline(an);
+  const busy = an && !["succeeded", "failed", "cancelled"].includes(an.status);
+  if (state.tab === "shorts") await renderShorts(); else if (!state._momentsShown || !busy) await renderMoments(an);
+  schedule(busy || state._shortsBusy ? 1500 : 0);
+}
+function schedule(ms) { stopPolling(); if (ms) state.timer = setTimeout(refresh, ms); }
+function leaveDownloads() { state.dl = null; if (/^#(downloads|edit\/)/.test(location.hash)) history.replaceState(null, "", location.pathname); }
+function stopPolling() { clearTimeout(state.timer); state.timer = null; }
+function renderTab() { state._momentsShown = false; refresh(); }
+
+function renderPipeline(job) {
+  const el = $("#pipeline");
+  if (!job) { el.innerHTML = `<div class="row"><div class="grow">Not analysed yet.</div><button class="primary" onclick="analyze()">Find best moments</button></div>`; return; }
+  const idx = STAGES.findIndex(([k]) => k === job.stage);
+  const done = job.status === "succeeded";
+  const stages = STAGES.map(([k, label], i) => {
+    const cls = done || (idx > i) ? "done" : "";
+    const w = cls ? 100 : (i === idx ? 50 : 0);
+    return `<div class="stage ${cls}">${label}${i === idx && !done ? ' <span class="spin"></span>' : ""}<div class="bar"><i style="width:${w}%"></i></div></div>`;
+  }).join("");
+  let head;
+  if (done) head = `<div class="row"><div class="grow"><b>Analysis complete</b></div><button onclick="analyze()">Re-run</button></div>`;
+  else if (job.status === "failed") head = `<div class="row"><div class="grow err">Analysis failed: ${esc(job.error)}</div><button class="primary" onclick="analyze()">Resume</button></div>`;
+  else if (job.status === "cancelled") head = `<div class="row"><div class="grow">Analysis stopped.</div><button class="primary" onclick="analyze()">Resume</button></div>`;
+  else head = `<div class="row"><div class="grow"><b>Finding the best moments…</b> <span class="muted">${Math.round(job.progress * 100)}% · about 10–15 min for a 2 h stream. You can close this tab; it keeps going.</span></div>
+      <button class="ghost" onclick="cancelJob('${job.id}')">Stop</button></div>`;
+  el.innerHTML = head + (done ? "" : `<div class="stages">${stages}</div><div class="overall"><i style="width:${job.progress * 100}%"></i></div>`);
+}
+async function analyze() { try { await api(`/v1/projects/${state.project.id}/analyze`, { method: "POST", body: {} }); state._momentsShown = false; refresh(); } catch (e) { toast(e.message); } }
+async function cancelJob(id) { await api(`/v1/jobs/${id}/cancel`, { method: "POST" }); refresh(); }
+
+async function renderMoments(job) {
+  const body = $("#tabbody"); if (!body || state.tab !== "moments") return;
+  const id = state.project.id;
+  let hs = [];
+  try { hs = await api(`/v1/projects/${id}/highlights?limit=30`); } catch {}
+  if (!hs.length) {
+    body.innerHTML = `<div class="empty">${job && job.status !== "succeeded" ? "Moments will appear here when the analysis finishes." : "No moments yet."}</div>`;
+    return;
+  }
+  state._momentsShown = true;
+  const ratings = await api(`/v1/projects/${id}/ratings`);
+  body.innerHTML = `
+    <div class="card" id="makeShorts">${makeShortsForm(hs)}</div>
+    <div class="grid">${hs.map(h => momentCard(h, ratings[h.id])).join("")}</div>`;
+}
+
+function momentCard(h, rating) {
+  const ai = h.ai || {};
+  const tier = h.tier ? `<span class="badge b-${h.tier}">${h.tier}</span>` : "";
+  const tags = (ai.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join("");
+  return `<div class="moment ${rating === false ? "rejected" : ""}" id="m-${h.id}">
+    <div class="thumb" style="background-image:url('/v1/projects/${state.project.id}/moments/${h.id}/thumb.jpg')">
+      <span class="rank">#${h.rank}</span><span class="when">${hms(h.start_s)} · ${Math.round(h.duration_s)}s</span></div>
+    <div class="body">
+      <div class="row">${tier}<span class="title grow">${esc(ai.title || "Moment at " + hms(h.peak_s))}</span></div>
+      <div class="small">${esc(ai.what_happens || "")}</div>
+      ${ai.reason ? `<div class="small muted">Why: ${esc(ai.reason)}</div>` : ""}
+      <div class="tags">${tags}</div>
+      <div class="vote">
+        <button class="${rating === true ? "on-good" : ""}" onclick="rate('${h.id}', true)" title="More like this">👍 Keep</button>
+        <button class="${rating === false ? "on-bad" : ""}" onclick="rate('${h.id}', false)" title="Fewer like this">👎 Skip</button>
+      </div>
+    </div></div>`;
+}
+async function rate(cid, good) {
+  await api(`/v1/projects/${state.project.id}/moments/${cid}/rate`, { method: "POST", body: { good } });
+  toast(good ? "Got it: more moments like this" : "Got it: fewer moments like this");
+  state._momentsShown = false; refresh();
+}
+
+function makeShortsForm(hs) {
+  const game = localStorage.getItem("cf_game") || "";
+  const worthy = hs.filter(h => h.tier === "top" || h.tier === "strong").length;
+  return `<h2>Make Shorts</h2>
+    <div class="muted small">${worthy} moment${worthy === 1 ? "" : "s"} rated TOP/STRONG. Pick one or more styles:</div>
+    <div class="styles">${Object.entries(STYLE_INFO).map(([k, [name, desc]]) => `
+      <div class="style ${state.styles.has(k) ? "on" : ""}" onclick="toggleStyle('${k}', this)"><b>${name}</b><span class="small muted">${desc}</span>
+        ${lengthPicker(k)}</div>`).join("")}</div>
+    <div class="row">
+      <label>Game <input type="text" id="game" value="${esc(game)}" placeholder="e.g. Phantom Blade Zero" style="width:220px"></label>
+      <label>Moments <input type="number" id="top" value="4" min="1" max="20" style="width:70px"></label>
+
+      <label class="small"><input type="checkbox" id="maybe"> include MAYBE moments</label>
+      <label class="small"><input type="checkbox" id="plain"> no effects</label>
+      <label class="small" title="White meme-style caption bar on top of Hype and Cinematic Shorts too. Unticked: each Short keeps its own setting (change it in the editor)."><input type="checkbox" id="cbar" ${localStorage.getItem("cf_cbar") === "1" ? "checked" : ""} onchange="localStorage.setItem('cf_cbar', this.checked ? '1' : '')"> caption bar on Hype/Cinematic</label>
+      <div class="grow"></div>
+      <button class="primary" onclick="makeShorts()">Make Shorts</button>
+    </div>`;
+}
+function toggleStyle(k, el) { state.styles.has(k) ? state.styles.delete(k) : state.styles.add(k); el.classList.toggle("on"); }
+
+const LEN_OPTS = [["", "Auto"], ["15", "up to 15 s"], ["20", "up to 20 s"], ["30", "up to 30 s"], ["45", "up to 45 s"], ["58", "up to 58 s (under 1 min)"], ["90", "up to 90 s"], ["custom", "Custom…"]];
+const LEN_AUTO = { hype: "Auto: the whole moment", meme: "Auto: ~20 s", cinematic: "Auto: ~20 s" };
+function lengthPicker(k) {
+  const v = localStorage.getItem("cf_len_" + k) || "", c = localStorage.getItem("cf_lenc_" + k) || "25";
+  return `<div class="row small" style="margin-top:8px;gap:6px" onclick="event.stopPropagation()" title="${LEN_AUTO[k] || "Auto"}. A limit: each Short keeps the length its moment needs, and only longer moments are cut down.">Max length
+    <select id="slen-${k}" style="width:auto;padding:4px 6px" onchange="localStorage.setItem('cf_len_${k}', this.value); $('#slenc-${k}').hidden = this.value !== 'custom'">
+      ${LEN_OPTS.map(([x, l]) => `<option value="${x}" ${x === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+    <input type="number" id="slenc-${k}" min="5" max="180" step="1" style="width:62px;padding:4px 6px" value="${esc(c)}" ${v === "custom" ? "" : "hidden"}
+      onchange="localStorage.setItem('cf_lenc_${k}', this.value)"></div>`;
+}
+function shortLengths() {
+  const out = {};
+  for (const k of Object.keys(STYLE_INFO)) {
+    const v = $("#slen-" + k)?.value;
+    const n = !v ? null : v === "custom" ? +$("#slenc-" + k).value : +v;
+    out[k] = n >= 5 && n <= 180 ? n : null;
+  }
+  return out;
+}
+
+async function makeShorts() {
+  const game = $("#game").value.trim(); localStorage.setItem("cf_game", game);
+  try {
+    await api(`/v1/projects/${state.project.id}/shorts`, { method: "POST", body: {
+      styles: [...state.styles], top: +$("#top").value || 4, game: game || null,
+      include_maybe: $("#maybe").checked, plain: $("#plain").checked, lengths: shortLengths(),
+      caption_bar: $("#cbar").checked ? true : null } });
+    state._shortsBusy = true; setTab("shorts"); toast("Making your Shorts…");
+  } catch (e) { toast("Error: " + e.message); }
+}
+
+async function renderShorts() {
+  const body = $("#tabbody"); if (!body) return;
+  const s = await api(`/v1/projects/${state.project.id}/shorts`);
+  const b = s.batch;
+  const making = s.shorts.filter(c => c.music.work && c.music.work.busy).length;
+  state._shortsBusy = !!(b && b.running) || s.rendering > 0 || making > 0;
+  let head = "";
+  if (b && b.error) head = `<div class="card err">${esc(b.error)}</div>`;
+  else if (state._shortsBusy) {
+    const pct = s.progress.length ? Math.round(s.progress.reduce((a, p) => a + p.progress, 0) / s.progress.length * 100) : 0;
+    head = `<div class="card"><span class="spin"></span> <b>${b && b.running ? esc(b.step) : s.rendering ? `Rendering ${s.rendering} Short${s.rendering > 1 ? "s" : ""}… ${pct}%` : `Making music for ${making} Short${making > 1 ? "s" : ""}… the first one after a restart can take a few minutes while the AI music model loads`}</b>
+      <div class="muted small">New Shorts appear below as they finish.</div></div>`;
+  } else if (b && b.folder) {
+    head = `<div class="card row"><div class="grow">Saved to <b>${esc(b.folder)}</b> (with a .txt of title, description and hashtags next to each).</div>
+      <button data-path="${esc(b.folder)}" onclick="openFolder(this.dataset.path)">Open folder</button></div>`;
+  }
+  const filter = state.styleFilter;
+  const visible = filter === "all" ? s.shorts : s.shorts.filter(c => c.style === filter);
+  const ratingsP = api(`/v1/projects/${state.project.id}/ratings`);
+  const shown = new Set([...body.querySelectorAll(".short")].map(e => e.dataset.key));
+  const keys = visible.map(c => c.id + ":" + c.modified);
+  const sameFilter = body.dataset.filter === filter && body.dataset.total === String(s.shorts.length);
+  if (state._editing || (sameFilter && keys.length === shown.size && keys.every(k => shown.has(k)))) { $("#shortsHead") && ($("#shortsHead").innerHTML = head); return; }
+  const ratings = await ratingsP;
+  await loadMusic().catch(() => null);
+  body.dataset.filter = filter; body.dataset.total = String(s.shorts.length);
+  const bar = s.shorts.length ? filterBar(s.shorts) : "";
+  let list;
+  if (visible.length) list = `<div class="shorts">${visible.map(c => shortCard(c, ratings[c.candidate_id])).join("")}</div>`;
+  else if (s.shorts.length) list = `<div class="empty">No ${STYLE_INFO[filter]?.[0] || filter} Shorts for this stream yet. Pick it under <a href="#" onclick="setTab('moments')">Make Shorts</a>.</div>`;
+  else list = state._shortsBusy ? "" : `<div class="empty">No Shorts yet. Go to <a href="#" onclick="setTab('moments')">Best moments</a> and press Make Shorts.</div>`;
+  body.innerHTML = `<div id="shortsHead">${head}</div>${bar}${list}`;
+}
+
+function filterBar(all) {
+  const count = k => k === "all" ? all.length : all.filter(c => c.style === k).length;
+  const opts = [["all", "All"], ["hype", "Hype"], ["cinematic", "Cinematic"], ["meme", "Meme"]];
+  return `<div class="filters">${opts.map(([k, label]) => `
+    <button class="chip ${state.styleFilter === k ? "on" : ""}" onclick="setStyleFilter('${k}')">${label} <span>${count(k)}</span></button>`).join("")}</div>`;
+}
+function setStyleFilter(k) {
+  state.styleFilter = k; localStorage.setItem("cf_style_filter", k);
+  $("#tabbody").dataset.filter = ""; renderShorts();
+}
+
+function shortCard(c, rating) {
+  const p = c.publish || {};
+  return `<div class="short" data-key="${c.id}:${c.modified}">
+    <video src="${c.video_url}?v=${Math.round(c.modified)}#t=0.6" controls preload="metadata" playsinline></video>
+    <div class="body">
+      <div class="row"><span class="badge b-${c.style}">${c.style}</span><span class="muted small">#${c.rank} · ${c.duration_s}s · ${c.aspect}</span></div>
+      <div><b>${esc(p.youtube_title || c.title)}</b></div>
+      <div class="small">On screen: ${c.text ? `<span class="ontext">${esc(c.text)}</span>` : '<span class="muted">no text</span>'}${p.edited ? ' <span class="muted">(edited)</span>' : ""}</div>
+      <div class="copyrow">
+        <button data-t="${esc(p.youtube_title || c.title)}" onclick="copy(this.dataset.t, 'Title')">Copy title</button>
+        <button data-t="${esc((p.description || "") + "\n\n" + (p.hashtags || ""))}" onclick="copy(this.dataset.t, 'Description')">Copy description</button>
+        <button onclick="reveal('${c.id}')">Show file</button>
+        <button onclick="toggleEdit('${c.id}')">Edit text</button>
+        <button class="primary" onclick="openEditor('${c.id}')">✂ Open editor</button>
+      </div>
+      ${musicControls(c, (musicCache && musicCache.tracks) || [])}
+      <div class="edit" id="edit-${c.id}" hidden>
+        <label class="small muted">On-screen text <span class="muted">(leave empty for none)</span></label>
+        <input type="text" maxlength="120" id="et-${c.id}" value="${esc(c.text)}">
+        <label class="small muted">YouTube title</label>
+        <input type="text" maxlength="100" id="ett-${c.id}" value="${esc(p.youtube_title || c.title)}">
+        <label class="small muted">Description</label>
+        <textarea rows="4" id="etd-${c.id}">${esc(p.description || "")}</textarea>
+        <div class="row"><button class="primary" onclick="saveText('${c.id}')">Save &amp; re-render</button>
+          <button class="ghost" onclick="toggleEdit('${c.id}')">Cancel</button></div>
+      </div>
+      <div class="vote">
+        <button class="${rating === true ? "on-good" : ""}" onclick="rateShort('${c.candidate_id}', true)">👍 Keep</button>
+        <button class="${rating === false ? "on-bad" : ""}" onclick="rateShort('${c.candidate_id}', false)">👎 Skip</button>
+      </div>
+    </div></div>`;
+}
+function toggleEdit(id) { const el = $("#edit-" + id); el.hidden = !el.hidden; state._editing = !el.hidden; }
+async function saveText(id) {
+  try {
+    await api(`/v1/clips/${id}/text`, { method: "PATCH", body: {
+      text: $("#et-" + id).value, title: $("#ett-" + id).value, description: $("#etd-" + id).value } });
+    state._editing = false; state._shortsBusy = true; toast("Saved. Re-rendering this Short…");
+    $("#tabbody").innerHTML = ""; refresh();
+  } catch (e) { toast("Error: " + e.message); }
+}
+async function rateShort(cid, good) {
+  await api(`/v1/projects/${state.project.id}/moments/${cid}/rate`, { method: "POST", body: { good } });
+  toast(good ? "Saved: keep" : "Saved: skip"); $("#tabbody").innerHTML = ""; refresh();
+}
+async function copy(text, what) { try { await navigator.clipboard.writeText(text); toast(what + " copied"); } catch { toast("Could not copy"); } }
+async function reveal(id) { try { await api(`/v1/clips/${id}/reveal`, { method: "POST" }); } catch (e) { toast(e.message); } }
+async function openFolder(path) { try { await api(`/v1/open-folder`, { method: "POST", body: { path } }); } catch (e) { toast(e.message); } }
+
+// ---------- Music ----------
+let musicCache = null;
+async function loadMusic(force) { if (!musicCache || force) musicCache = await api("/v1/music"); return musicCache; }
+
+async function showMusic() {
+  leaveDownloads();
+  stopPolling(); state.project = null; loadProjects();
+  $("#main").innerHTML = `<h1>Music</h1>
+    <div class="sub">You don't need to add anything: SPHURA composes an original score for every Short, timed to its hits.
+      Optionally add your own tracks here; the AI uses one only when it fits a moment better than a score would.</div>
+    <div class="card"><div class="row">
+      <label class="primary-like"><input type="file" id="mfiles" accept=".mp3,.wav,.m4a,.aac,.flac,.ogg,.opus" multiple hidden onchange="uploadMusic(this.files)">
+        <button class="primary" onclick="$('#mfiles').click()">+ Add music files</button></label>
+      <button onclick="api('/v1/music/open-folder', {method:'POST'})">Open music folder</button>
+      <span class="muted small grow" id="mfolder"></span></div>
+      <div id="mdrop" class="drop">or drop audio files here</div></div>
+    <div class="card"><h2>Optional: where to find tracks</h2>
+      <div class="small muted" style="margin-bottom:8px">Download from these, then add the files above. Note each track's license with "Edit info" so SPHURA can add any credit it needs to your descriptions.</div>
+      <div class="row">${LIBRARIES.map(([n, u, d]) => `<a class="libbtn" href="${u}" target="_blank" rel="noopener"><b>${n}</b><span class="small muted">${d}</span></a>`).join("")}</div></div>
+    <div class="card" id="aimusic"><span class="spin"></span></div>
+    <div class="card" id="mlist"><span class="spin"></span> Reading tracks…</div>`;
+  renderAiMusic();
+  const dz = $("#mdrop");
+  dz.ondragover = e => { e.preventDefault(); dz.classList.add("over"); };
+  dz.ondragleave = () => dz.classList.remove("over");
+  dz.ondrop = e => { e.preventDefault(); dz.classList.remove("over"); uploadMusic(e.dataTransfer.files); };
+  renderMusicList(true);
+}
+async function renderAiMusic() {
+  const el = $("#aimusic"); if (!el) return;
+  try {
+    const a = await api("/v1/music/ai");
+    if (a.ready) {
+      el.innerHTML = `<h2>AI music <span class="badge b-lic">On</span></h2><div class="small muted">Every Short gets its own track from ACE-Step 1.5 on your GPU, written for the game and the moment. MIT licence: fine for monetised videos, no credit needed. If it ever fails, SPHURA falls back to its built-in score.<br>Installed in ${esc(a.folder)}</div>`;
+      return;
+    }
+    const st = a.install;
+    el.innerHTML = st.running
+      ? `<h2>Installing AI music</h2>${ytBar(st.step, st.progress)}<div class="small muted" style="margin-top:6px">You can keep using SPHURA. Shorts made meanwhile use the built-in score.</div>`
+      : `<div class="row"><div class="grow"><h2 style="margin:0 0 4px">AI music</h2>
+          <div class="small muted">Real-sounding, different music for every Short, made on your GPU by ACE-Step 1.5 (MIT licence, fine for monetised videos). One-time download of about 10-12 GB into ${esc(a.folder)}.</div>
+          ${st.error ? `<div class="err small">${esc(st.error)}</div>` : ""}</div>
+        <button class="primary" onclick="installAiMusic()">${st.error ? "Try again" : "Install AI music"}</button></div>`;
+    if (st.running) setTimeout(renderAiMusic, 2000);
+  } catch (e) { el.innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+}
+async function installAiMusic() { try { await api("/v1/music/ai/install", { method: "POST" }); renderAiMusic(); } catch (e) { toast(e.message); } }
+
+async function renderMusicList(force) {
+  const m = await loadMusic(force);
+  $("#mfolder") && ($("#mfolder").textContent = m.folder);
+  $("#mlist").innerHTML = m.tracks.length ? `<h2>${m.tracks.length} track${m.tracks.length > 1 ? "s" : ""}</h2>` + m.tracks.map((t, i) => `
+    <div class="rec" style="flex-wrap:wrap"><div class="grow"><div class="name">${esc(t.name)}
+        ${t.source || t.license ? `<span class="badge b-lic">${esc(t.source || "licensed")}</span>` : `<span class="badge b-warn" title="Add where it's from and its license">license?</span>`}</div>
+      <div class="small muted">${hms(t.length_s)} · ${t.bpm ? t.bpm + " BPM" : "no steady beat"} · ${t.tone}${t.builds ? " · builds &amp; drops" : " · steady"} · drop at ${hms(t.drop_s)}${t.tags ? " · " + esc(t.tags) : ""}</div></div>
+      <button onclick="$('#meta-${i}').hidden = !$('#meta-${i}').hidden">Edit info</button>
+      <div class="edit" id="meta-${i}" hidden style="flex-basis:100%">
+        <label class="small muted">Source</label>
+        <select id="ms-${i}">${["", ...SOURCES].map(s => `<option ${s === t.source ? "selected" : ""} value="${esc(s)}">${s || "Unknown"}</option>`).join("")}</select>
+        <label class="small muted">License (e.g. "No attribution required", "CC BY 4.0")</label><input type="text" id="ml-${i}" value="${esc(t.license)}">
+        <label class="small muted">Credit to add to descriptions (leave empty if none is required)</label><input type="text" id="mc2-${i}" value="${esc(t.credit)}" placeholder='e.g. Music: "Night Drive" by Artist (Pixabay)'>
+        <label class="small muted">Your tags (help the AI pick: e.g. "dark phonk, boss fights")</label><input type="text" id="mt-${i}" value="${esc(t.tags)}">
+        <div class="row"><button class="primary" data-file="${esc(t.file)}" onclick="saveMeta(${i}, this.dataset.file)">Save</button></div>
+      </div></div>`).join("")
+    : `<div class="muted">No tracks added. That's fine: SPHURA composes original music for each Short.</div>`;
+}
+const LIBRARIES = [
+  ["YouTube Audio Library", "https://studio.youtube.com/channel/UC/music", "Safest for YouTube; many need no credit"],
+  ["Pixabay Music", "https://pixabay.com/music/", "Free; check each track's license"],
+  ["Mixkit", "https://mixkit.co/free-stock-music/", "Free; check its license terms"],
+];
+const SOURCES = ["YouTube Audio Library", "Pixabay", "Mixkit", "Other"];
+async function saveMeta(i, file) {
+  try {
+    await api("/v1/music/meta", { method: "PATCH", body: { file, source: $("#ms-" + i).value,
+      license: $("#ml-" + i).value, credit: $("#mc2-" + i).value, tags: $("#mt-" + i).value } });
+    toast("Saved"); renderMusicList(true);
+  } catch (e) { toast("Error: " + e.message); }
+}
+async function uploadMusic(files) {
+  for (const f of files) {
+    toast("Adding " + f.name + "…");
+    const r = await fetch("/v1/music/upload?name=" + encodeURIComponent(f.name), { method: "POST", body: f });
+    if (!r.ok) { let m = r.statusText; try { m = (await r.json()).detail; } catch {} toast(f.name + ": " + m); return; }
+  }
+  toast("Music added. Measuring beats…"); await renderMusicList(true); loadStatus();
+}
+
+function musicControls(c, tracks) {
+  const m = c.music || {};
+  const opts = [["auto", "Auto (SPHURA decides)"], ["score", "New SPHURA music (makes a different track each time)"], ["none", "No music"], ...tracks.map(t => [t.path, t.name + (t.bpm ? ` · ${t.bpm} BPM` : "")])];
+  const vol = m.gain_db ?? (c.style === "cinematic" ? -7 : c.style === "meme" ? -16 : -15);
+  return `<div class="musicrow">
+    <span class="small muted">♪ ${m.score ? `${m.score.ai ? "AI music" : "SPHURA score"} · ${esc(m.score.label || MOOD_LABEL[m.score.mood] || m.score.mood)} · ${m.score.bpm} BPM` : m.name ? esc(m.name) : "no music"}${m.choice === "auto" && m.ai && m.name === m.ai.name ? " (AI pick)" : ""}${m.credit ? " · credited" : ""}</span>
+    ${m.work && m.work.busy ? `<span class="small"><span class="spin"></span> Making music…</span>` : `<button class="ghost small" onclick="toggleMusic('${c.id}')">Change</button>`}</div>
+    ${m.work && m.work.error ? `<div class="small err">Music change failed: ${esc(m.work.error)}</div>` : ""}
+    <div class="edit" id="mus-${c.id}" hidden>
+      <label class="small muted">Music</label>
+      <select id="mc-${c.id}">${opts.map(([v, l]) => `<option value="${esc(v)}" ${v === m.choice ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>
+      <label class="small muted">Volume <span id="mvl-${c.id}">${vol} dB</span></label>
+      <input type="range" min="-30" max="0" step="1" value="${vol}" id="mv-${c.id}" oninput="$('#mvl-${c.id}').textContent=this.value+' dB'">
+      ${aiMusicBlock(c)}
+      <div class="small muted">The edit is re-cut to the track's beat: the key hit and the cuts land on beats.</div>
+      <div class="row"><button class="primary" onclick="saveMusic('${c.id}', this)">Apply &amp; re-render</button>
+        <button class="ghost" onclick="toggleMusic('${c.id}')">Cancel</button></div>
+    </div>`;
+}
+const MOOD_LABEL = { phonk: "dark phonk", dark: "dark cinematic", bounce: "light bounce" };
+function aiMusicBlock(c) {
+  const m = c.music || {};
+  if (m.score) {
+    if (m.score.ai) return `<div class="aibox"><b>AI music made for this clip:</b> ${esc(m.score.label)} at ${m.score.bpm} BPM.
+      <div class="small muted">Prompt: ${esc(m.score.prompt || "")}</div>
+      <span class="muted small">Cuts and the key hit are synced to its beat. MIT licence: nothing to credit.</span></div>`;
+    return `<div class="aibox"><b>SPHURA composed this for the clip:</b> ${esc(m.score.label || MOOD_LABEL[m.score.mood] || m.score.mood)} at ${m.score.bpm} BPM.
+      <span class="muted">The hit lands on the beat and the drop hits when the action comes back to speed. Original music: nothing to license or credit.</span></div>`;
+  }
+  const ai = m.ai;
+  if (!ai) return "";
+  let html = `<div class="aibox"><b>AI pick:</b> ${esc(ai.name)}${ai.reason ? ` <span class="muted">· ${esc(ai.reason)}</span>` : ""}`;
+  if (ai.alternatives.length) html += `<div class="small">Also good: ${ai.alternatives.map(a =>
+    `<a href="#" data-path="${esc(a.path)}" onclick="event.preventDefault(); $('#mc-${c.id}').value = this.dataset.path">${esc(a.name)}</a>`).join(", ")}</div>`;
+  return html + `</div>`;
+}
+function toggleMusic(id) { const el = $("#mus-" + id); el.hidden = !el.hidden; state._editing = !el.hidden; }
+async function saveMusic(id, btn) {
+  const choice = $("#mc-" + id).value;
+  if (btn) { btn.disabled = true; btn.textContent = "Starting…"; }
+  try {
+    await api(`/v1/clips/${id}/music`, { method: "PATCH", body: { choice, volume_db: choice === "none" ? null : +$("#mv-" + id).value } });
+    state._editing = false; state._shortsBusy = true; toast("Making the new music, then re-rendering this Short…");
+    $("#tabbody").innerHTML = ""; refresh();
+  } catch (e) { toast("Error: " + e.message); if (btn) { btn.disabled = false; btn.textContent = "Apply & re-render"; } }
+}
+
+// ---------- Timeline editor ----------
+const ED_STYLES = { plain: "Subtitle", hook: "Pop-in hook", caps: "Caps opener", bar: "Meme caption bar" };
+const FX_NAMES = { cold_open: "Cold open (climax first)", zoom: "Zoom punches", shake: "Camera shake", slowmo: "Slow motion",
+  flash: "Flashes & glitches", rgb: "RGB split", trail: "Motion trail", vignette: "Vignette", letterbox: "Letterbox bars", sfx: "Sound effects" };
+let ed = null;
+
+async function openEditor(id) {
+  stopPolling(); leaveDownloads();
+  history.replaceState(null, "", "#edit/" + id);
+  $("#main").innerHTML = `<div class="card"><span class="spin"></span> Opening the editor…</div>`;
+  try {
+    const st = await api(`/v1/clips/${id}/editor`);
+    ed = { st, sel: null, dirty: false, pps: 40, busy: false };
+    renderEditor();
+    if (!st.has_draft) edRender("draft", true);
+  } catch (e) { $("#main").innerHTML = `<div class="card err">${esc(e.message)}</div>`; }
+}
+
+function edTotal() {
+  // Client-side length while editing: server numbers until parts change, then 1:1 sums
+  const s = ed.st;
+  return ed.dirtyCuts ? s.teaser_out + s.segments.reduce((a, [x, y]) => a + (y - x), 0) : s.duration;
+}
+function edSegOut() {
+  const s = ed.st;
+  if (!ed.dirtyCuts) return s.segments_out;
+  let t = s.teaser_out;
+  return s.segments.map(([a, b]) => { const r = [t, t + (b - a)]; t += b - a; return r; });
+}
+
+function renderEditor() {
+  const s = ed.st;
+  const back = s.project_id ? `openProject('${s.project_id}').then(() => document.querySelectorAll('.tab').forEach(t => /Shorts/.test(t.textContent) && t.click()))` : "showNew()";
+  $("#main").innerHTML = `
+    <div class="row" style="margin-bottom:10px"><button onclick="${back}">← Back to Shorts</button>
+      <h1 class="grow" style="margin:0 8px;font-size:20px">${esc(s.title)} <span class="badge b-${s.style}">${s.style}</span></h1>
+      <span class="small muted" id="edstatus"></span>
+      <button onclick="edRender('draft')" id="edprev">▶ Update preview</button>
+      <button class="primary" onclick="edRender('final')">Save & export</button></div>
+    <div class="edgrid">
+      <div class="card edstage">
+        <div class="row small" style="margin-bottom:8px"><label><input type="radio" name="edsrc" value="short" checked onchange="edSource()"> Short preview</label>
+          <label><input type="radio" name="edsrc" value="orig" onchange="edSource()"> Original footage (for cutting)</label></div>
+        <div id="edframe" class="edframe" style="aspect-ratio:${s.out_w}/${s.out_h}">
+          <video id="edvid" playsinline preload="auto"></video><div id="edtext" class="edtext"></div></div>
+        <div class="row" style="margin-top:8px"><button onclick="edPlay()" id="edplaybtn">▶ Play</button>
+          <span class="small muted" id="edtime">0.0 s</span><div class="grow"></div>
+          <button onclick="edAddText()">+ Text at playhead</button><button onclick="edSplit()">✂ Split at playhead</button></div>
+      </div>
+      <div class="card" id="edinspector"></div>
+    </div>
+    <div class="card"><div class="row small muted" style="margin-bottom:6px"><b style="color:var(--text)">Timeline</b><div class="grow"></div>
+      Zoom <input type="range" min="10" max="160" value="${ed.pps}" style="width:140px" oninput="ed.pps=+this.value;edDraw()"></div>
+      <div id="edtl" class="edtl"></div>
+      <div class="small muted" style="margin-top:6px">Drag the edges of a part to trim it, drag text blocks to move them, drag their right edge to change how long they show. Space = play/pause, Delete = remove selected, S = split.</div></div>`;
+  edSource(); edDraw(); edInspector();
+}
+
+function edSource() {
+  const v = $("#edvid"), orig = document.querySelector('input[name=edsrc]:checked').value === "orig";
+  ed.orig = orig;
+  v.src = orig ? `/v1/clips/${ed.st.id}/source` : (ed.st.has_draft ? `/v1/clips/${ed.st.id}/draft.mp4?v=${Date.now()}` : `/v1/clips/${ed.st.id}/video`);
+  $("#edframe").style.aspectRatio = orig ? "16/9" : `${ed.st.out_w}/${ed.st.out_h}`;
+  v.ontimeupdate = edTick; v.onplay = v.onpause = () => $("#edplaybtn").textContent = v.paused ? "▶ Play" : "❚❚ Pause";
+  if (orig) { const seg = ed.st.segments[ed.sel?.kind === "seg" ? ed.sel.i : 0]; v.onloadedmetadata = () => v.currentTime = seg[0]; }
+  else v.onloadedmetadata = null;
+  if (!orig && !ed.st.has_draft) $("#edstatus").textContent = "Showing the exported Short (text burned in) until the preview is ready";
+}
+function edPlay() { const v = $("#edvid"); v.paused ? v.play() : v.pause(); }
+function edNow() {
+  const v = $("#edvid"); if (!ed.orig) return v.currentTime || 0;
+  // Original footage: map the source time back onto the Short's timeline when inside a part
+  const so = edSegOut(); const i = ed.st.segments.findIndex(([a, b]) => v.currentTime >= a && v.currentTime <= b);
+  return i < 0 ? 0 : so[i][0] + (v.currentTime - ed.st.segments[i][0]);
+}
+function edTick() {
+  const t = edNow(); $("#edtime").textContent = `${t.toFixed(1)} s / ${edTotal().toFixed(1)} s`;
+  const ph = $("#edph"); if (ph) ph.style.left = (t * ed.pps) + "px";
+  edDrawText(t);
+  if (!$("#edvid").paused) requestAnimationFrame(edTick);
+}
+
+function edStyleBox(o) {
+  const s = ed.st, w = s.out_w, h = s.out_h, base = Math.min(w, h) * 0.085;
+  const size = ({ caps: base * 0.9, plain: base * 0.7, bar: w * 0.064 }[o.style] || base) * (o.size || 1);
+  const marginV = (h > w * 1.5 ? 0.2 : 0.1) * h;
+  let y = o.y;
+  if (y == null) y = o.style === "bar" ? (s.bar_h / 2) / h : o.style === "plain" ? 1 - (marginV + size / 2) / h : (marginV + size / 2) / h;
+  if (o.style === "bar") y = (s.bar_h / 2) / h;
+  return { size, y };
+}
+function edDrawText(t) {
+  const box = $("#edtext"); if (!box) return;
+  if (ed.orig) { box.innerHTML = ""; return; }
+  const scale = $("#edframe").clientWidth / ed.st.out_w;
+  box.innerHTML = ed.st.overlays.map((o, i) => {
+    if (t < o.start_s || t > o.end_s) return "";
+    const { size, y } = edStyleBox(o);
+    const upper = o.style === "hook" || o.style === "caps";
+    const color = o.color || (o.style === "bar" ? "#000" : "#fff");
+    const on = ed.sel?.kind === "txt" && ed.sel.i === i;
+    return `<div class="edov ed-${o.style} ${on ? "on" : ""}" data-i="${i}"
+      style="top:${y * 100}%;font-size:${size * scale}px;color:${color};${upper ? "text-transform:uppercase;" : ""}">${esc(o.text)}${on ? `<i class="edsz" title="Drag to resize"></i>` : ""}</div>`;
+  }).join("");
+  box.querySelectorAll(".edov").forEach(el => {
+    const i = +el.dataset.i;
+    el.onpointerdown = ev => ev.target.classList.contains("edsz") ? edDragSize(ev, i) : edDragY(ev, i);
+    el.onwheel = ev => { ev.preventDefault(); edSize(i, ev.deltaY < 0 ? 0.05 : -0.05); };
+  });
+}
+function edSize(i, step, value, fromSlider) {
+  const o = ed.st.overlays[i]; if (!o) return;
+  const v = value != null ? value : (o.size || 1) + step;
+  o.size = Math.round(Math.min(3, Math.max(0.4, v)) * 100) / 100; ed.dirty = true;
+  edDrawText(edNow());
+  if (!fromSlider) edInspector(); // keep the slider under the pointer while dragging it
+  else { const n = document.querySelector('#edinspector input[type=number][step="5"]'); n && (n.value = Math.round(o.size * 100)); }
+}
+function edDragSize(ev, i) {
+  ev.preventDefault(); ev.stopPropagation(); edSelect("txt", i);
+  const o = ed.st.overlays[i], y0 = ev.clientY, s0 = o.size || 1;
+  const move = e => edSize(i, null, s0 * Math.pow(1.006, e.clientY - y0), true);
+  const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); edInspector(); };
+  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+}
+function edDragY(ev, i) {
+  ev.preventDefault(); edSelect("txt", i);
+  const fr = $("#edframe").getBoundingClientRect(); const o = ed.st.overlays[i]; if (o.style === "bar") return;
+  const move = e => { o.y = Math.min(0.97, Math.max(0.03, (e.clientY - fr.top) / fr.height)); ed.dirty = true; edDrawText(edNow()); edInspector(); };
+  const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+}
+
+function edDraw() {
+  const s = ed.st, total = Math.max(edTotal(), 1), pps = ed.pps, W = Math.ceil(total * pps) + 40;
+  const so = edSegOut();
+  let ruler = "";
+  const step = pps >= 60 ? 1 : pps >= 25 ? 2 : 5;
+  for (let t = 0; t <= total; t += step) ruler += `<span style="left:${t * pps}px">${t}s</span>`;
+  const teaser = s.teaser_out > 0.05 ? `<div class="edblk teaser" style="left:0;width:${s.teaser_out * pps}px" title="Cold open (the climax first)">Cold open</div>` : "";
+  const segs = so.map(([a, b], i) => `<div class="edblk seg ${ed.sel?.kind === "seg" && ed.sel.i === i ? "on" : ""}" data-i="${i}" style="left:${a * pps}px;width:${Math.max(6, (b - a) * pps)}px">
+      <i class="h l"></i><span>Part ${i + 1} · ${(s.segments[i][1] - s.segments[i][0]).toFixed(1)}s</span><i class="h r"></i></div>`).join("");
+  const lanes = []; // stack overlapping text blocks in lanes
+  const txt = s.overlays.map((o, i) => {
+    let lane = lanes.findIndex(end => end <= o.start_s + 0.01); if (lane < 0) { lane = lanes.length; lanes.push(0); } lanes[lane] = o.end_s;
+    return `<div class="edblk txt ${ed.sel?.kind === "txt" && ed.sel.i === i ? "on" : ""}" data-i="${i}" style="left:${o.start_s * pps}px;width:${Math.max(8, (Math.min(o.end_s, total) - o.start_s) * pps)}px;top:${lane * 26}px">
+      <span>${esc(o.text)}</span><i class="h r"></i></div>`; }).join("");
+  $("#edtl").innerHTML = `<div class="edinner" style="width:${W}px">
+    <div class="edruler" onpointerdown="edSeek(event)">${ruler}</div>
+    <div class="edtrack" style="height:34px"><b class="edlab">Video</b>${teaser}${segs}</div>
+    <div class="edtrack" style="height:${Math.max(1, lanes.length) * 26 + 8}px"><b class="edlab">Text</b>${txt}</div>
+    <div id="edph" class="edph" style="left:${edNow() * pps}px"></div></div>`;
+  $("#edtl").querySelectorAll(".edblk.seg").forEach(el => el.onpointerdown = ev => edDragSeg(ev, +el.dataset.i));
+  $("#edtl").querySelectorAll(".edblk.txt").forEach(el => el.onpointerdown = ev => edDragTxt(ev, +el.dataset.i));
+}
+function edSeek(ev) {
+  const r = $("#edtl .edinner").getBoundingClientRect(); const t = Math.max(0, (ev.clientX - r.left) / ed.pps);
+  const v = $("#edvid");
+  if (ed.orig) { const so = edSegOut(); const i = so.findIndex(([a, b]) => t >= a && t <= b); if (i >= 0) v.currentTime = ed.st.segments[i][0] + (t - so[i][0]); }
+  else v.currentTime = Math.min(t, edTotal());
+  setTimeout(edTick, 50);
+}
+function edDrag(ev, onMove) {
+  ev.preventDefault(); ev.stopPropagation(); const x0 = ev.clientX;
+  const move = e => onMove((e.clientX - x0) / ed.pps);
+  const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); edDraw(); edInspector(); };
+  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+}
+function edDragSeg(ev, i) {
+  edSelect("seg", i);
+  const edge = ev.target.classList.contains("l") ? "l" : ev.target.classList.contains("r") ? "r" : null;
+  if (!edge) return;
+  const seg = ed.st.segments[i], [a0, b0] = seg, src = ed.st.source_duration;
+  edDrag(ev, d => {
+    if (edge === "l") seg[0] = Math.min(Math.max(0, a0 + d), seg[1] - 0.3); else seg[1] = Math.max(Math.min(src, b0 + d), seg[0] + 0.3);
+    ed.dirty = ed.dirtyCuts = true;
+    if (ed.orig) $("#edvid").currentTime = edge === "l" ? seg[0] : seg[1];
+    edDraw(); edInspector();
+  });
+}
+function edDragTxt(ev, i) {
+  edSelect("txt", i);
+  const o = ed.st.overlays[i], s0 = o.start_s, e0 = o.end_s, total = edTotal(), resize = ev.target.classList.contains("r");
+  edDrag(ev, d => {
+    if (resize) o.end_s = Math.max(o.start_s + 0.2, Math.min(total, e0 + d));
+    else { const len = e0 - s0; o.start_s = Math.max(0, Math.min(total - len, s0 + d)); o.end_s = o.start_s + len; }
+    ed.dirty = true; edDraw(); edDrawText(edNow());
+  });
+}
+function edSelect(kind, i) { ed.sel = { kind, i }; edDraw(); edInspector(); edDrawText(edNow()); }
+
+function edInspector() {
+  const s = ed.st, el = $("#edinspector"); if (!el) return;
+  let html = "";
+  if (ed.sel?.kind === "txt" && s.overlays[ed.sel.i]) {
+    const o = s.overlays[ed.sel.i], i = ed.sel.i;
+    html = `<h2>Text</h2><textarea rows="2" style="width:100%" oninput="ed.st.overlays[${i}].text=this.value;ed.dirty=true;edDraw();edDrawText(edNow())">${esc(o.text)}</textarea>
+      <div class="edrow"><label>Style</label><select onchange="ed.st.overlays[${i}].style=this.value;ed.dirty=true;edDrawText(edNow())">${Object.entries(ED_STYLES).filter(([k]) => k !== "bar" || s.style === "meme" || s.caption_bar).map(([k, l]) => `<option value="${k}" ${k === o.style ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      <div class="edrow"><label>Shows</label><input type="number" step="0.1" value="${o.start_s.toFixed(1)}" onchange="edSetTime(${i},'start_s',this.value)"> to <input type="number" step="0.1" value="${o.end_s.toFixed(1)}" onchange="edSetTime(${i},'end_s',this.value)"> s</div>
+      <div class="edrow"><label>Size</label><button title="Smaller" onclick="edSize(${i},-0.1)">A−</button>
+        <input type="number" min="40" max="300" step="5" style="width:64px" value="${Math.round((o.size || 1) * 100)}" onchange="edSize(${i},null,this.value/100)"> %
+        <button title="Bigger" onclick="edSize(${i},0.1)">A+</button></div>
+      <div class="edrow"><label></label>${[["S", 0.7], ["M", 1], ["L", 1.4], ["XL", 1.9]].map(([l, v]) =>
+        `<button class="${Math.abs((o.size || 1) - v) < 0.01 ? "primary" : ""}" onclick="edSize(${i},null,${v})">${l}</button>`).join("")}</div>
+      <div class="edrow"><label></label><input type="range" min="0.4" max="3" step="0.05" value="${o.size || 1}" oninput="edSize(${i},null,+this.value,true)"></div>
+      <div class="small muted">Tip: drag the corner handle of the text on the preview, or scroll over it.</div>
+      <div class="edrow"><label>Colour</label><input type="color" value="${o.color || "#ffffff"}" oninput="ed.st.overlays[${i}].color=this.value;ed.dirty=true;edDrawText(edNow())">
+        <button onclick="ed.st.overlays[${i}].color='';ed.dirty=true;edInspector();edDrawText(edNow())">Default</button></div>
+      <div class="edrow"><label>Position</label>${o.style === "bar" ? `<span class="small muted">In the caption bar</span>` : `<span class="small muted">${o.y == null ? "Default" : Math.round(o.y * 100) + "% from top"} · drag it on the preview</span>
+        <button onclick="ed.st.overlays[${i}].y=null;ed.dirty=true;edInspector();edDrawText(edNow())">Reset</button>`}</div>
+      <div class="row" style="margin-top:10px"><button onclick="edJump(${o.start_s})">Go to</button><div class="grow"></div><button onclick="edDelete()">Delete text</button></div>`;
+  } else if (ed.sel?.kind === "seg" && s.segments[ed.sel.i]) {
+    const [a, b] = s.segments[ed.sel.i], i = ed.sel.i;
+    html = `<h2>Part ${i + 1}</h2><div class="small muted">From the original recording: ${hms(a)} to ${hms(b)}</div>
+      <div class="edrow"><label>Starts</label><button onclick="edNudge(${i},0,-1)">−1s</button><button onclick="edNudge(${i},0,-0.1)">−0.1</button>
+        <input type="number" step="0.1" value="${a.toFixed(1)}" onchange="edSetSeg(${i},0,this.value)"><button onclick="edNudge(${i},0,0.1)">+0.1</button><button onclick="edNudge(${i},0,1)">+1s</button></div>
+      <div class="edrow"><label>Ends</label><button onclick="edNudge(${i},1,-1)">−1s</button><button onclick="edNudge(${i},1,-0.1)">−0.1</button>
+        <input type="number" step="0.1" value="${b.toFixed(1)}" onchange="edSetSeg(${i},1,this.value)"><button onclick="edNudge(${i},1,0.1)">+0.1</button><button onclick="edNudge(${i},1,1)">+1s</button></div>
+      <div class="small muted" style="margin:6px 0">Tip: switch to "Original footage" to see the exact frame you cut on.</div>
+      <div class="row"><button onclick="edSplit()">✂ Split at playhead</button><div class="grow"></div><button ${s.segments.length < 2 ? "disabled" : ""} onclick="edDelete()">Delete part</button></div>`;
+  } else html = `<h2>Edit</h2><div class="small muted">Click a part or a text block in the timeline to edit it, or add text at the playhead.</div>`;
+  if (s.style !== "meme") html += `<h2 style="margin-top:18px">Layout</h2>
+    <label class="small" style="display:block"><input type="checkbox" ${s.caption_bar ? "checked" : ""} onchange="ed.st.caption_bar=this.checked;ed.dirty=ed.dirtyBar=true;edInspector()"> White caption bar on top (meme-style)</label>
+    ${ed.dirtyBar ? `<div class="small" style="color:var(--accent2)">Click "Update preview" to see the new layout and its caption.</div>` : ""}`;
+  html += `<h2 style="margin-top:18px">Effects</h2><div class="small" style="margin-bottom:6px">${esc(s.fx_label || "")}</div>
+    ${s.toggles.map(k => `<label class="small" style="display:block"><input type="checkbox" ${s.fx_off.includes(k) ? "" : "checked"} onchange="edFx('${k}',this.checked)"> ${FX_NAMES[k] || k}</label>`).join("")}
+    ${s.music ? `<div class="small muted" style="margin-top:8px">♪ ${esc(s.music)} (change it on the Shorts page)</div>` : ""}
+    <div class="small muted" style="margin-top:8px">Cuts and effect changes are applied when you update the preview or save.</div>`;
+  el.innerHTML = html;
+}
+function edJump(t) { if (ed.orig) { document.querySelector('input[value=short]').click(); } $("#edvid").currentTime = t + 0.05; setTimeout(edTick, 60); }
+function edSetTime(i, k, v) { const o = ed.st.overlays[i]; o[k] = Math.max(0, +v); if (o.end_s <= o.start_s) o.end_s = o.start_s + 0.5; ed.dirty = true; edDraw(); edDrawText(edNow()); }
+function edSetSeg(i, j, v) { const seg = ed.st.segments[i]; seg[j] = Math.max(0, Math.min(ed.st.source_duration, +v)); if (seg[1] - seg[0] < 0.3) seg[j] = j ? seg[0] + 0.3 : seg[1] - 0.3; ed.dirty = ed.dirtyCuts = true; edDraw(); edInspector(); if (ed.orig) $("#edvid").currentTime = seg[j]; }
+function edNudge(i, j, d) { edSetSeg(i, j, ed.st.segments[i][j] + d); }
+function edFx(k, on) { const off = new Set(ed.st.fx_off); on ? off.delete(k) : off.add(k); ed.st.fx_off = [...off]; ed.dirty = ed.dirtyFx = true; }
+function edAddText() {
+  const t = Math.min(edNow(), Math.max(0, edTotal() - 0.5));
+  ed.st.overlays.push({ text: "Your text", start_s: +t.toFixed(2), end_s: +Math.min(edTotal(), t + 2.5).toFixed(2), style: "plain", y: 0.72, size: 1, color: "" });
+  ed.dirty = true; edSelect("txt", ed.st.overlays.length - 1);
+  setTimeout(() => { const ta = document.querySelector("#edinspector textarea"); ta && (ta.focus(), ta.select()); }, 30);
+}
+function edSplit() {
+  const t = edNow(), so = edSegOut(), i = so.findIndex(([a, b]) => t > a + 0.3 && t < b - 0.3);
+  if (i < 0) return toast("Put the playhead inside a part (not at its edge) to split it");
+  const [a, b] = ed.st.segments[i], cut = a + (t - so[i][0]);
+  ed.st.segments.splice(i, 1, [a, cut], [cut, b]); ed.dirty = ed.dirtyCuts = true; edSelect("seg", i + 1);
+}
+function edDelete() {
+  if (!ed.sel) return;
+  if (ed.sel.kind === "txt") ed.st.overlays.splice(ed.sel.i, 1);
+  else { if (ed.st.segments.length < 2) return toast("A Short needs at least one part"); ed.st.segments.splice(ed.sel.i, 1); ed.dirtyCuts = true; }
+  ed.dirty = true; ed.sel = null; edDraw(); edInspector(); edDrawText(edNow());
+}
+
+async function edRender(kind, quiet) {
+  if (ed.busy) return; ed.busy = true;
+  const st = $("#edstatus"); st.innerHTML = `<span class="spin"></span> ${kind === "draft" ? "Rendering preview…" : "Saving and exporting…"}`;
+  try {
+    const body = { render: kind };
+    if (!quiet) { body.segments = ed.st.segments; body.overlays = ed.st.overlays; body.fx_off = ed.st.fx_off; body.caption_bar = ed.st.caption_bar; }
+    const r = await api(`/v1/clips/${ed.st.id}/editor`, { method: "PUT", body });
+    for (;;) {
+      await new Promise(res => setTimeout(res, 1000));
+      const j = await api(`/v1/jobs/${r.job_id}`);
+      if (!$("#edstatus")) return;
+      st.innerHTML = `<span class="spin"></span> ${kind === "draft" ? "Rendering preview" : "Exporting"} ${Math.round((j.progress || 0) * 100)}%`;
+      if (j.status === "succeeded") break;
+      if (j.status === "failed" || j.status === "cancelled") throw new Error(j.error || "render failed");
+    }
+    const keepSel = ed.sel, t = edNow();
+    ed.st = await api(`/v1/clips/${ed.st.id}/editor`); ed.dirty = ed.dirtyCuts = ed.dirtyFx = ed.dirtyBar = false; ed.sel = keepSel;
+    if (kind === "final") toast("Saved and exported");
+    renderEditor();
+    $("#edstatus").textContent = kind === "draft" ? "Preview updated" : "Saved and exported to your Shorts folder";
+    const v = $("#edvid"); v.onloadeddata = () => { v.currentTime = Math.min(t, ed.st.duration); edTick(); };
+  } catch (e) { st.innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+  finally { ed.busy = false; }
+}
+document.addEventListener("keydown", e => {
+  if (!ed || !$("#edtl") || ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
+  if (e.code === "Space") { e.preventDefault(); edPlay(); }
+  else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); edDelete(); }
+  else if (e.key === "s" || e.key === "S") edSplit();
+});
+
+// ---------- Start ----------
+(async () => {
+  loadStatus();
+  const ps = await loadProjects().catch(() => []);
+  if (location.hash === "#music") showMusic();
+  else if (location.hash.startsWith("#edit/")) openEditor(location.hash.slice(6));
+  else if (location.hash.startsWith("#downloads")) showDownloads(location.hash === "#downloads/library" ? "library" : "queue");
+  else if (ps.length) openProject(ps[0].id); else showNew();
+})();
+</script>
+</body>
+</html>

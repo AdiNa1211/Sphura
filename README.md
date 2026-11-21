@@ -1,18 +1,68 @@
 # SPHURA
 
-Long gaming recordings → AI-selected, social-ready vertical shorts. Windows (local-first) + Web (cloud).
+AI Shorts editor for gaming streams. Point it at a long recording (or a YouTube video), and it finds the best moments and cuts them into ready-to-post vertical Shorts with effects, captions, music, titles and hashtags. Everything runs locally on your PC.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full technical plan.
+
+## Quick start (Windows)
+
+1. Install [FFmpeg](https://www.gyan.dev/ffmpeg/builds/) (`winget install Gyan.FFmpeg`) and [Ollama](https://ollama.com) with a vision model (`ollama pull gemma4:12b`).
+2. Set up the engine once:
+   ```bash
+   cd engine
+   python -m venv .venv
+   .venv\Scripts\pip install -e ".[dev]"
+   ```
+3. Double-click **`SPHURA.bat`**. It starts Ollama if needed and opens SPHURA at `http://127.0.0.1:47821/`. Keep the black window open while you use it, and restart it after updating the code.
+
+## What it does
+
+- **New stream:** paste a file path or **Browse** for a recording, use a YouTube video from Downloads, or pick one of your recent recordings (OBS folder, Videos, Downloads, other drives). SPHURA analyses it with live progress per stage.
+- **Best moments:** ranked moments with thumbnails, tiers and the AI's notes. 👍 / 👎 teach SPHURA your taste across videos. Fight finales (the end of a long boss fight) are always found and kept.
+- **Make Shorts:** pick styles, the game name, the number of moments and a **max length per style**. Each Short keeps the length its moment needs, up to that limit.
+- **Shorts:** preview every Short, copy the title and description (with hashtags), change music, edit the on-screen text, or open the **timeline editor**.
+- **Downloads:** a YouTube queue and library for videos and playlists you own or have permission to use, with quality choice, pause/resume and **Edit video** straight into the Shorts pipeline.
+- **Music:** original music made for every Short (local AI music, or SPHURA's own composer), or tracks from your music folder picked by the AI. The edit is synced to the beat.
+
+### Styles
+
+| Style | Format | Look |
+|---|---|---|
+| **Hype** | 9:16 | Cold open, zoom punches, shake, speed ramps, slow-mo, sound effects. Optional meme caption bar |
+| **Meme** | 3:4, ~20 s | White caption bar: the setup until the key hit, then the punchline. Game audio |
+| **Cinematic** | 1:1, ~20 s | Cool grade, glitch cuts, motion trails, all-caps opener, music on the beat. Optional caption bar |
+
+Effects follow what happens in the clip: a finisher gets a freeze-frame and letterbox bars, an explosion a bigger flash and shake, a death or a funny moment a punch-in and freeze, and so on. Each effect can be switched off per Short in the editor.
+
+### Timeline editor
+
+Open any Short to trim or split its cuts on a timeline, add text at any time with its own style, size, colour and position, turn effects on or off, and toggle the caption bar. **Update preview** renders a quick draft; **Save & export** makes the final Short with the same music re-synced to the new cuts.
+
+### Where things are saved
+
+| What | Where |
+|---|---|
+| Shorts, with a `.txt` of title, description and hashtags | `Videos\SPHURA\<date> <stream name>\<style>` |
+| Downloads | `Videos\SPHURA\Downloads` (changeable in Downloads settings) |
+| Your music | `Music\SPHURA` |
+| Database, analysis, tools | `%LOCALAPPDATA%\SPHURA` |
+| AI music model (ACE-Step 1.5, installed from the Music page) | `<install folder>\ai\ace-step` |
+
+Data from the earlier names (SPHURI, ClipForge) moves over automatically on first start, and their `SPHURI_*` / `CLIPFORGE_*` environment variables still work.
 
 ## Layout
 
 | Path | What | Status |
 |---|---|---|
-| `engine/` | Python processing engine shared by desktop and cloud | Phases 1–6 ✅ |
-| `apps/desktop/` | Flutter Windows app (talks to the engine sidecar) | Phase 11 (UI starts alongside Phase 6) |
-| `apps/web/` | Web client | Phase 12 |
-| `packages/api_contract/` | OpenAPI spec exported from the engine | generated |
-| `deploy/` | Cloud workers / Docker | Phase 12 |
+| `engine/` | Python engine (FastAPI, SQLite, FFmpeg) and the browser UI in `src/sphura/web` | In use |
+| `apps/desktop/` | Flutter Windows app | Planned |
+| `apps/web/` | Cloud web client | Planned |
+| `packages/api_contract/` | OpenAPI spec exported from the engine | Generated |
+| `deploy/` | Cloud workers / Docker | Planned |
+
+## How it was built
+
+The sections below record each build phase and how the engine works inside.
 
 ## Phase 1 — what works
 
@@ -227,17 +277,6 @@ Every vertical clip is now edited like a creator's Short. Each effect is anchore
   - It is ducked under the game audio.
 - `--plain` turns all of this off (the hook text stays). Changing the style later re-plans existing clips automatically.
 
-## SPHURA in your browser
-
-Double-click **SPHURA.bat** (in the project folder). It starts Ollama if needed, then opens SPHURA at `http://127.0.0.1:47821/`. Keep the black window open while you use it.
-
-- **New stream:** lists your newest recordings (OBS folder, Videos, Downloads, other drives). Click **Process** to analyse one, with live progress per stage.
-- **Best moments:** ranked moments with thumbnails, tiers and the AI's notes. 👍 / 👎 teach SPHURA your taste.
-- **Make Shorts:** pick styles (meme / cinematic / hype), the game name and the number of moments, then press **Make Shorts**.
-- **Shorts:** preview every Short in the page, with **Copy title**, **Copy description** (incl. hashtags), **Show file** and 👍 / 👎.
-
-Each style keeps its own version of a clip, so rendering one style never overwrites another. The page only answers requests from this PC.
-
 ## Music: AI pick, beat sync, licenses
 
 - **Track profiles:** each track in your music folder is measured for tempo (spectral-flux beat tracking, with half-tempo correction and drones rejected), dark vs bright tone, build-ups and drops, and the drop's position.
@@ -258,7 +297,7 @@ These were researched from the most-viewed `#phantombladezero` Shorts (Nov 2026)
 | `--style` | Format | Modelled on |
 |---|---|---|
 | `hype` (default) | 9:16. Cold open, punch-ins, shake, speed ramps, SFX | — |
-| `meme` | 3:4, about 10 s. A white caption bar with a reaction line, game audio only, payoff near the end | a 2.5M-view caption-bar Short |
+| `meme` | 3:4. A white caption bar, game audio only, payoff near the end (now ~20 s: setup, then punchline) | a 2.5M-view caption-bar Short |
 | `cinematic` | 1:1, about 18–20 s. Near-mono cool grade, pixel-glitch cuts, ghost trails in slow-mo, all-caps opener, music-led with game audio underneath | 2M- and 657K-view edit Shorts |
 
 - **Beat sync:** the cinematic style detects the music's tempo (±10 ms). It slides the track so the key hit lands on a beat, and snaps nearby cuts, punches and glitches onto beats. It never moves them more than 120 ms away from the real hit.
@@ -267,6 +306,17 @@ These were researched from the most-viewed `#phantombladezero` Shorts (Nov 2026)
   `sphura render <id> --style meme --game "Phantom Blade Zero" --out ...`
   `sphura render <id> --style cinematic --game "Phantom Blade Zero" --out ...`
 
+## Later additions
+
+- **Original music:** SPHURA composes a score per Short in one of 10 moods (phonk, drift, drill, trap, rage, dark, epic, tension, bounce, funk), varying moods between clips. With **AI music** installed (ACE-Step 1.5, MIT licence, runs on the GPU), it writes a prompt from the moment and generates a fitting instrumental instead, falling back to the composer if that fails. Nothing to license or credit.
+- **Fight finales:** long stretches of sustained action are detected as fights, and the last 20 s plus aftermath becomes its own moment that is always included.
+- **Context-matched effects:** each moment is classified (finisher, clutch, explosion, death, funny, story, action) and the effect plan is reshaped to fit, including freeze-frames and letterbox bars.
+- **Max length per style:** a limit, not a target: shorter moments keep their own length; longer ones are cut around the key moment.
+- **Caption bar on Hype/Cinematic:** the meme-style white bar with setup and punchline, per Short or for a whole batch.
+- **Timeline editor** with draft previews, and music that stays the same track after edits.
+- **YouTube downloads:** official yt-dlp + Deno, retries across YouTube clients, crash-safe queue, duplicate detection, disk-space checks. See section 18 of the architecture doc.
+- **Robust re-renders:** music changes run in the background, and a render whose video is open elsewhere is saved under a new name instead of failing.
+
 ## Next
 
-Ideas: a title/description/hashtags file per clip, a cover frame, a loop ending, captions for dialogue scenes, and a Flutter desktop app.
+Ideas: a cover frame, a loop ending, captions for dialogue scenes, and a Flutter desktop app.

@@ -56,7 +56,7 @@ from sphura.pipeline.styles import (
 from sphura.pipeline.tracks import choose_mix_track
 from sphura.pipeline.wav import WavFile
 from sphura.ports.ai import ImageInput, LLMProvider
-from sphura.ports.media import MediaDecoder, VideoRenderer
+from sphura.ports.media import MediaDecoder, PeopleDetector, VideoRenderer
 from sphura.ports.queue import JobContext, JobQueue
 from sphura.ports.repositories import ClipRepository, MediaAssetRepository
 from sphura.ports.storage import StorageProvider
@@ -844,12 +844,14 @@ class RenderHandler:
         storage: StorageProvider,
         renderer: VideoRenderer,
         decoder: MediaDecoder,
+        people: PeopleDetector | None = None,
     ) -> None:
         self._clips = clips
         self._assets = assets
         self._storage = storage
         self._renderer = renderer
         self._decoder = decoder
+        self._people = people
         self._locks: dict[str, threading.Lock] = {}
         self._locks_guard = threading.Lock()
 
@@ -894,6 +896,7 @@ class RenderHandler:
                 self._decoder,
                 v.display_width / v.display_height,
                 g.video_aspect,
+                self._people,
             )
             clip.crop_path = plan.keyframes
             clip.crop_version = reframe.VERSION

@@ -21,7 +21,7 @@
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
   button.primary:hover:not(:disabled) { background: #ff6d4d; }
   button.ghost { background: transparent; }
-  input[type=text], input[type=number] { font: inherit; color: var(--text); background: var(--bg);
+  input[type=text], input[type=number], input[type=password] { font: inherit; color: var(--text); background: var(--bg);
            border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
   input:focus { outline: 2px solid #3c4252; }
   a { color: var(--blue); }
@@ -241,6 +241,22 @@
   .edrow label { width: 64px; font-size: 13px; color: var(--muted); }
   .edrow input[type=number] { width: 72px; }
   @media (max-width: 1100px) { .edgrid { grid-template-columns: 1fr; } }
+  .si-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .si-stat { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+  .si-stat b { display: block; font-size: 24px; margin-top: 2px; }
+  .si-row { display: grid; grid-template-columns: 112px 1fr 300px 70px; gap: 14px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .si-row img { width: 112px; height: 63px; object-fit: cover; border-radius: 6px; background: #000; }
+  .si-row a { color: var(--text); text-decoration: none; font-weight: 600; } .si-row a:hover { color: var(--accent); }
+  .si-m { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 10px; font-size: 12px; color: var(--muted); }
+  .si-m b { color: var(--text); font-weight: 600; }
+  .si-ops { text-align: center; font-size: 22px; font-weight: 800; }
+  .si-ops small { display: block; font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: .05em; }
+  .b-viral { background: #3a1410; color: var(--accent); } .b-trending { background: #10283a; color: var(--blue); }
+  .b-small_creator { background: #12301f; color: var(--good); } .b-consistent { background: #3a2410; color: var(--accent2); }
+  .si-feat { display: grid; grid-template-columns: 1fr 70px 70px; gap: 6px; font-size: 13px; padding: 3px 0; }
+  .si-feat .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .si-feat .bar i { display: block; height: 100%; background: var(--accent); }
+  @media (max-width: 1100px) { .si-row { grid-template-columns: 90px 1fr 70px; } .si-row .si-m { grid-column: 2 / 4; } .si-row img { width: 90px; height: 51px; } }
 </style>
 </head>
 <body>
@@ -254,6 +270,7 @@
     <button style="width:100%; margin-top:8px" onclick="showDownloads('queue')">⬇ Downloads</button>
     <button style="width:100%; margin-top:8px" onclick="showMusic()">♪ Music</button>
     <button style="width:100%; margin-top:8px" onclick="showReels()" title="Turn many clips into one edited highlight video">★ Highlight reel</button>
+    <button style="width:100%; margin-top:8px" onclick="showIntel()" title="What makes gaming Shorts work, from public YouTube data">📈 Shorts Intelligence</button>
     <h3>Your streams</h3>
     <div id="projects"><div class="muted small">Loading…</div></div>
   </aside>
@@ -1026,7 +1043,7 @@ const RL = { r: null, timer: null, step: 1, save: null, seq: null };
 const RL_STEPS = ["Import videos", "AI analysis", "Review highlights", "Customize & arrange", "Generate video", "Preview & export"];
 const RL_BUSY = ["analysing", "picking", "rendering"];
 const RL_LENGTHS = [30, 60, 90, 180];
-function rlStop() { clearTimeout(RL.timer); RL.timer = null; RL.seq = null; }
+function rlStop() { clearTimeout(RL.timer); RL.timer = null; RL.seq = null; clearTimeout(SI.timer); SI.timer = null; }
 
 async function showReels() {
   if (!edLeaveOk()) return;
@@ -2030,12 +2047,145 @@ document.addEventListener("keydown", e => {
   else if (ed.orig && (e.key === "o" || e.key === "O")) edMark(1);
 });
 
+
+// ---------- Shorts Intelligence ----------
+const SI = { tab: "overview", cat: "", data: null, timer: null };
+const SI_GAMES = { gow: "God of War Ragnarök", pbz: "Phantom Blade Zero", similar: "Similar games" };
+const SI_CATS = { viral: "Viral", trending: "Trending", small_creator: "Small creator", consistent: "Consistent" };
+function siNum(n) { if (n == null) return "—"; return n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + "K" : String(n); }
+function siWhen(iso) { return iso ? ago(Date.parse(iso) / 1000) : "never"; }
+
+async function showIntel(tab) {
+  if (!edLeaveOk()) return;
+  stopPolling(); leaveDownloads(); rlStop(); state.project = null; loadProjects();
+  SI.tab = tab || SI.tab || "overview"; SI.cat = "";
+  history.replaceState(null, "", "#intel/" + SI.tab);
+  $("#main").innerHTML = `<div class="muted">Loading…</div>`;
+  await siLoad();
+}
+async function siLoad() {
+  try { SI.data = await api("/v1/research"); } catch (e) { $("#main").innerHTML = `<div class="card">${esc(e.message)}</div>`; return; }
+  siRender();
+  if (SI.data.running) { clearTimeout(SI.timer); SI.timer = setTimeout(siLoad, 1500); }
+}
+function siRender() {
+  const d = SI.data, last = d.last_run, run = d.running;
+  if (!d.key.set) SI.tab = "setup";
+  const tabs = [["overview", "Overview"], ...Object.entries(SI_GAMES), ["setup", "Setup & history"]];
+  const status = run
+    ? `<div class="rlbar" style="margin-top:8px"><i style="width:${Math.round(run.progress * 100)}%"></i></div><div class="small muted">${esc(run.step)} · ${run.quota_used} quota units used</div>`
+    : last && last.status === "failed" ? `<div class="small" style="color:var(--accent2)">Last refresh failed: ${esc(last.error)}</div>` : "";
+  $("#main").innerHTML = `
+    <div class="row"><div class="grow"><h1>Shorts Intelligence</h1>
+      <div class="sub" style="margin:0">Public YouTube Shorts about your games, measured over time. Observed performance only: YouTube doesn't publish retention or swipe-away data, so none is shown or guessed.</div></div>
+      <div style="text-align:right"><button class="primary" ${d.key.set && !run ? "" : "disabled"} onclick="siRefresh()">${run ? "Refreshing…" : "↻ Refresh research"}</button>
+      <div class="small muted" style="margin-top:4px">Last updated: ${siWhen(d.last_updated)}</div></div></div>
+    ${status}
+    <div class="tabs">${tabs.map(([k, l]) => `<div class="tab ${SI.tab === k ? "active" : ""}" onclick="siTab('${k}')">${esc(l)}${SI_GAMES[k] ? ` <span class="muted small">${d.games[k].count}</span>` : ""}</div>`).join("")}</div>
+    <div id="sibody"></div>`;
+  if (SI.tab === "overview") siOverview(); else if (SI.tab === "setup") siSetup(); else siGame(SI.tab);
+}
+function siTab(t) { SI.tab = t; SI.cat = ""; history.replaceState(null, "", "#intel/" + t); siRender(); }
+async function siRefresh() {
+  try { await api("/v1/research/refresh", { method: "POST", body: {} }); toast("Researching… this uses about 2,000 of your 10,000 daily quota units"); siLoad(); }
+  catch (e) { toast(e.message); }
+}
+function siOverview() {
+  const d = SI.data;
+  const stats = [`<div class="si-stat"><span class="small muted">Shorts tracked</span><b>${d.total}</b></div>`,
+    ...Object.entries(SI_GAMES).map(([k, n]) => `<div class="si-stat"><span class="small muted">${esc(n)}</span><b>${d.games[k].count}</b><span class="small muted">avg OPS ${d.games[k].avg_ops ?? "—"}</span></div>`)];
+  $("#sibody").innerHTML = `<div class="si-stats">${stats.join("")}</div>
+    ${d.total ? "" : `<div class="card">No research yet. Press <b>↻ Refresh research</b> to collect Shorts for your games.</div>`}
+    ${Object.entries(SI_GAMES).filter(([k]) => d.games[k].count).map(([k, n]) => `
+      <div class="card"><div class="row"><h2 class="grow" style="margin:0">${esc(n)}</h2><button onclick="siTab('${k}')">See all ${d.games[k].count} →</button></div>
+        <div style="margin:8px 0">${Object.entries(SI_CATS).map(([c, l]) => `<span class="badge b-${c}" style="margin-right:6px">${l}: ${d.games[k].categories[c] || 0}</span>`).join("")}</div>
+        ${d.games[k].top.map(v => siBrief(v)).join("")}
+        ${siPatterns(d.games[k].patterns)}</div>`).join("")}
+    <div class="card small muted"><b style="color:var(--text)">How OPS (Observed Performance Score) works</b><br>
+      0–100, relative to the other Shorts of the same game: 40% views compared with the channel's subscriber count, 40% views adjusted for how long the Short has been up (views ÷ √days), 20% likes and comments per view. Hidden likes or subscriber counts drop that part. Creative scores (SSPI: hook, story, editing…) are a separate score and arrive in the next phase; the two are never combined.</div>`;
+}
+function siBrief(v) {
+  return `<div class="row" style="padding:6px 0"><img src="${esc(v.thumbnail || "")}" style="width:72px;height:40px;object-fit:cover;border-radius:4px" loading="lazy">
+    <div class="grow"><a href="${esc(v.url)}" target="_blank" rel="noopener" style="color:var(--text)">${esc(v.title)}</a><div class="small muted">${esc(v.channel)} · ${siNum(v.views)} views</div></div>
+    <div class="si-ops" style="width:60px">${v.ops ?? "—"}<small>OPS</small></div></div>`;
+}
+function siPatterns(p) {
+  if (!p || !p.features) return p && p.n ? `<div class="small muted" style="margin-top:8px">Too few Shorts (${p.n}) to compare patterns yet.</div>` : "";
+  const warn = p.small_sample ? `<div class="small" style="color:var(--accent2);margin-bottom:6px">Only ${p.n} Shorts: treat these as hints, not findings.</div>` : "";
+  return `<details style="margin-top:10px"><summary class="small" style="cursor:pointer">Metadata patterns: top quarter by OPS (${p.top_n}) vs the rest (${p.rest_n})</summary>
+    <div style="margin-top:8px">${warn}
+      <div class="si-feat small muted"><span></span><span>Top</span><span>Rest</span></div>
+      ${p.features.map(f => `<div class="si-feat"><span>${esc(f.label)}</span><span>${Math.round(f.top * 100)}%<div class="bar"><i style="width:${f.top * 100}%"></i></div></span><span class="muted">${Math.round(f.rest * 100)}%</span></div>`).join("")}
+      <div class="small" style="margin-top:8px">Median length: <b>${p.duration.top_median_s}s</b> top vs ${p.duration.rest_median_s}s rest · title words: <b>${p.title_words.top_median}</b> vs ${p.title_words.rest_median}</div>
+      <div class="small muted" style="margin-top:6px">Common hashtags in the top quarter: ${p.top_hashtags.map(h => esc(h.tag) + " (" + h.count + ")").join(", ") || "none"}</div>
+      <div class="small muted" style="margin-top:6px">Observed correlations in public metadata, not proof of cause.</div></div></details>`;
+}
+async function siGame(game) {
+  const g = SI.data.games[game];
+  $("#sibody").innerHTML = `<div class="muted">Loading…</div>`;
+  let vids = [];
+  try { vids = await api(`/v1/research/videos?game=${game}`); } catch (e) { toast(e.message); }
+  const counts = {}; vids.forEach(v => v.categories.forEach(c => counts[c] = (counts[c] || 0) + 1));
+  const shown = SI.cat ? vids.filter(v => v.categories.includes(SI.cat)) : vids;
+  $("#sibody").innerHTML = `
+    <div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:6px"><button class="chip ${SI.cat ? "" : "on"}" onclick="SI.cat='';siGame('${game}')">All<span>${vids.length}</span></button>
+      ${Object.entries(SI_CATS).map(([c, l]) => `<button class="chip ${SI.cat === c ? "on" : ""}" onclick="SI.cat='${c}';siGame('${game}')">${l}<span>${counts[c] || 0}</span></button>`).join("")}</div>
+    ${g.patterns && g.patterns.small_sample && vids.length ? `<div class="small" style="color:var(--accent2)">Only ${vids.length} Shorts for this game so far: scores are relative to a small set.</div>` : ""}
+    <div>${shown.map(siRow).join("") || `<div class="card muted">Nothing here yet.</div>`}</div>
+    <div class="card" style="margin-top:16px">${siPatterns(g.patterns) || `<span class="muted small">Patterns appear once there's research data.</span>`}</div>`;
+}
+function siRow(v) {
+  const m = v.metrics, s = v.latest || {}, ch = m.views_change;
+  const age = m.age_days < 60 ? Math.round(m.age_days) + " days" : m.age_days < 730 ? Math.round(m.age_days / 30) + " months" : (m.age_days / 365).toFixed(1) + " years";
+  const parts = `Reach vs channel: ${v.ops_parts.reach ?? "n/a"} · Age-adjusted views: ${v.ops_parts.pace ?? "n/a"} · Engagement: ${v.ops_parts.engagement ?? "n/a"}`;
+  return `<div class="si-row">
+    <a href="${esc(v.url)}" target="_blank" rel="noopener"><img src="${esc(v.thumbnail || "")}" loading="lazy" alt=""></a>
+    <div><a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.title)}</a>
+      <div class="small muted">${esc(v.channel)}${s.channel_subs != null ? " · " + siNum(s.channel_subs) + " subs" : " · subs hidden"} · ${age} old · ${Math.round(v.duration_s)}s</div>
+      <div style="margin-top:4px">${v.categories.map((c, i) => `<span class="badge b-${c}" title="${esc(v.category_reasons[i])}" style="margin-right:4px">${SI_CATS[c]}</span>`).join("")}</div></div>
+    <div class="si-m">
+      <span>Views<br><b>${siNum(m.views)}</b></span>
+      <span>Likes<br><b>${siNum(s.likes)}</b>${m.like_rate != null ? ` (${(m.like_rate * 100).toFixed(1)}%)` : ""}</span>
+      <span>Comments<br><b>${siNum(s.comments)}</b></span>
+      <span>Views/day<br><b>${siNum(m.views_per_day)}</b></span>
+      <span>Views/sub<br><b>${m.views_per_sub == null ? "—" : m.views_per_sub >= 10 ? siNum(Math.round(m.views_per_sub)) : m.views_per_sub.toFixed(1)}</b></span>
+      <span>Since last<br><b>${ch == null ? "—" : (ch >= 0 ? "+" : "") + siNum(ch)}</b></span></div>
+    <div class="si-ops" title="${esc(parts)}">${v.ops ?? "—"}<small>OPS</small></div></div>`;
+}
+function siSetup() {
+  const d = SI.data, k = d.key;
+  $("#sibody").innerHTML = `
+    <div class="card"><h2 style="margin-top:0">YouTube Data API key</h2>
+      ${k.set ? `<div class="small" style="margin-bottom:8px">Key saved: <b>${esc(k.masked || "")}</b> (${esc(k.source)})</div>` : `<div class="small" style="color:var(--accent2);margin-bottom:8px">No key yet. Research needs one.</div>`}
+      <div class="row"><input id="sikey" class="grow" type="password" placeholder="Paste your API key (starts with AIza…)"><button class="primary" onclick="siSaveKey()">Save & test</button></div>
+      <ol class="small muted" style="margin:12px 0 0 18px;line-height:1.7">
+        <li>Open <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">Google Cloud Console</a> and create a project (any name, e.g. "SPHURA"). No billing needed.</li>
+        <li>Open <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">YouTube Data API v3</a> in the API Library and press <b>Enable</b>.</li>
+        <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credentials</a> → <b>Create credentials</b> → <b>API key</b>. Optionally restrict it to "YouTube Data API v3".</li>
+        <li>Paste it here. SPHURA tests it with one request (1 quota unit) and stores it only on this PC.</li></ol>
+      <div class="small muted" style="margin-top:10px">Free quota: 10,000 units a day. One full refresh uses about 2,000 (each search costs 100), so up to ~4 refreshes a day. Only public data is read: no sign-in, no private analytics.</div></div>
+    <div class="card"><h2 style="margin-top:0">What gets searched</h2>
+      ${Object.entries(SI_GAMES).map(([g, n]) => `<div class="small" style="margin-bottom:6px"><b>${esc(n)}</b>: <span class="muted">${d.games[g].queries.map(esc).join(" · ")}</span></div>`).join("")}
+      <div class="small muted">Each search runs twice: most-viewed of all time and most-viewed in the last 30 days. Videos over 3 minutes or not about the game are skipped. Every refresh also re-measures all Shorts found before, so changes are tracked.</div></div>
+    <div class="card"><h2 style="margin-top:0">Refresh history</h2>
+      ${d.runs.length ? `<table class="small" style="width:100%;border-collapse:collapse">${["When", "Result", "New", "Re-measured", "Skipped", "Quota"].map(h => `<th style="text-align:left;color:var(--muted);font-weight:600">${h}</th>`).join("")}
+        ${d.runs.map(r => `<tr><td>${new Date(r.started_at).toLocaleString()}</td><td>${r.status === "failed" ? `<span style="color:var(--accent2)" title="${esc(r.error || "")}">failed</span>` : esc(r.status)}</td><td>${r.new ?? 0}</td><td>${r.updated ?? 0}</td><td>${r.skipped ?? 0}</td><td>${r.quota_used ?? 0}</td></tr>`).join("")}</table>`
+        : `<span class="muted small">No refreshes yet.</span>`}</div>`;
+}
+async function siSaveKey() {
+  const key = $("#sikey").value.trim();
+  if (!key) { toast("Paste a key first"); return; }
+  try { await api("/v1/research/key", { method: "PUT", body: { key } }); toast("Key works and is saved"); SI.tab = "overview"; siLoad(); }
+  catch (e) { toast(e.message); }
+}
+
 // ---------- Start ----------
 (async () => {
   loadStatus();
   const ps = await loadProjects().catch(() => []);
   if (location.hash === "#music") showMusic();
   else if (location.hash === "#reels") showReels();
+  else if (location.hash.startsWith("#intel")) showIntel(location.hash.split("/")[1] || "overview");
   else if (location.hash.startsWith("#reel/")) openReel(location.hash.slice(6));
   else if (location.hash.startsWith("#edit/")) openEditor(location.hash.slice(6));
   else if (location.hash.startsWith("#downloads")) showDownloads(location.hash === "#downloads/library" ? "library" : "queue");

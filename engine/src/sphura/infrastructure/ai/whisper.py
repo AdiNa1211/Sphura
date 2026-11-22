@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import itertools
 import logging
 import os
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+import numpy as np
 
 from sphura.domain.errors import ToolchainError
 from sphura.domain.transcript import TranscriptSegment, TranscriptWord
@@ -22,6 +25,9 @@ log = logging.getLogger(__name__)
 # Segments Whisper itself marks as probably-not-speech with low confidence are hallucinations
 _NO_SPEECH_PROB = 0.6
 _LOW_LOGPROB = -1.0
+_LANG_WINDOW_S = 30.0
+_HINDI_MIN = 0.03  # hi+ur share: Hinglish scores 0.03-0.25, English dialogue ~0.002
+_HINGLISH_PROMPT = "भाई, ये तो pro move था! चल, next level पे चलते हैं।"
 _VAD_PARAMS = {"min_silence_duration_ms": 500, "speech_pad_ms": 300}
 
 
@@ -150,6 +156,60 @@ class FasterWhisperProvider:
         offset_s: float,
         on_progress: ProgressFn,
     ) -> list[TranscriptSegment]:
+        if language is not None:
+            return self._transcribe(audio, sample_rate, language, offset_s, on_progress)
+        # Auto: Hindi/Hinglish windows are transcribed as Hindi. Whisper often scores
+        # Hinglish as English and then translates it ("bhai" -> "brother")
+        out: list[TranscriptSegment] = []
+        length = len(audio) or 1
+        for a, b, lang in self._language_runs(audio, sample_rate):
+
+            def part(f: float, a: int = a, b: int = b) -> None:
+                on_progress((a + f * (b - a)) / length)
+
+            out += self._transcribe(audio[a:b], sample_rate, lang, offset_s + a / sample_rate, part)
+        on_progress(1.0)
+        return out
+
+    def _language_runs(self, audio: AudioSamples, sr: int) -> list[tuple[int, int, str | None]]:
+        """[(start, end, "hi" or None = auto)] over the audio, cut near quiet points."""
+        step = int(_LANG_WINDOW_S * sr)
+        cuts = [0]
+        while cuts[-1] + step < len(audio) - sr * 5:
+            cuts.append(_quiet_point(audio, cuts[-1] + step, sr))
+        cuts.append(len(audio))
+        model = self._get()
+        marks: list[str | None] = []
+        for a, b in itertools.pairwise(cuts):
+            with self._run_lock:
+                try:
+                    _, _, probs = model.detect_language(
+                        audio[a:b],
+                        vad_filter=True,
+                        vad_parameters=self._vad(),
+                        language_detection_segments=1,
+                    )
+                except ValueError:  # no speech in this window: follow the previous one
+                    marks.append(marks[-1] if marks else None)
+                    continue
+            p = dict(probs)
+            marks.append("hi" if p.get("hi", 0.0) + p.get("ur", 0.0) >= _HINDI_MIN else None)
+        runs: list[tuple[int, int, str | None]] = []
+        for (a, b), m in zip(itertools.pairwise(cuts), marks, strict=True):
+            if runs and runs[-1][2] == m:
+                runs[-1] = (runs[-1][0], b, m)
+            else:
+                runs.append((a, b, m))
+        return runs
+
+    def _transcribe(
+        self,
+        audio: AudioSamples,
+        sample_rate: int,
+        language: str | None,
+        offset_s: float,
+        on_progress: ProgressFn,
+    ) -> list[TranscriptSegment]:
         model = self._get()
         length = len(audio) / sample_rate or 1.0
         out: list[TranscriptSegment] = []
@@ -161,6 +221,8 @@ class FasterWhisperProvider:
                     # Mixed streams (English game dialogue + Hindi commentary): re-detect per
                     # window instead of forcing one language, which translates the rest
                     multilingual=language is None,
+                    # Hinglish style: keeps English words in Latin script inside Hindi
+                    initial_prompt=_HINGLISH_PROMPT if language == "hi" else None,
                     beam_size=5,
                     word_timestamps=True,
                     vad_filter=True,
@@ -197,3 +259,12 @@ class FasterWhisperProvider:
                 raise
         on_progress(1.0)
         return out
+
+
+def _quiet_point(audio: AudioSamples, at: int, sr: int) -> int:
+    """The quietest 100 ms within 3 s of `at`, so a cut doesn't split a word."""
+    hop, span = sr // 10, sr * 3
+    lo, hi = max(0, at - span), min(len(audio) - hop, at + span)
+    if hi <= lo:
+        return at
+    return min(range(lo, hi, hop), key=lambda i: float(np.abs(audio[i : i + hop]).mean()))

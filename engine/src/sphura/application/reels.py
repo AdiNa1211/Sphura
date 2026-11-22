@@ -53,12 +53,14 @@ from sphura.pipeline.reel import (
     write_reel_copy,
 )
 from sphura.pipeline.reframe import plan_reframe
+from sphura.pipeline.stages import TranscribeStage
 from sphura.pipeline.styles import geometry
 from sphura.pipeline.tracks import choose_mix_track
 from sphura.ports.ai import LLMProvider
 from sphura.ports.media import (
     MediaDecoder,
     MediaProbe,
+    PeopleDetector,
     ReelCompiler,
     ReelMusic,
     ReelPart,
@@ -117,6 +119,7 @@ class ReelService:
         sample: Callable[[str, list[float], int], list[bytes]],
         llm: LLMProvider | None,
         data_dir: Path,
+        people: PeopleDetector | None = None,
     ) -> None:
         self._repo = repo
         self._ingest = ingest
@@ -131,6 +134,7 @@ class ReelService:
         self._probe = probe
         self._sample = sample
         self._llm = llm
+        self._people = people
         self._root = data_dir / "reels"
         self._branding_file = data_dir / "reel_branding.json"
         self._lock = threading.RLock()
@@ -325,7 +329,16 @@ class ReelService:
                 raise SphuraError("Add at least one video that SPHURA can read")
             for s in usable:
                 latest = self._latest_analysis(s["project_id"])
-                if latest is None or latest.status in (JobStatus.FAILED, JobStatus.CANCELLED):
+                stale = (  # made by an older transcriber (e.g. Hindi translated to English)
+                    latest is not None
+                    and latest.status == JobStatus.SUCCEEDED
+                    and self._queries.transcript_version(s["project_id"]) < TranscribeStage.version
+                )
+                if (
+                    latest is None
+                    or latest.status in (JobStatus.FAILED, JobStatus.CANCELLED)
+                    or stale
+                ):
                     self._analysis.start(s["project_id"])
                 s.update(status="queued", error=None, progress=0.0)
             reel.update(
@@ -809,7 +822,12 @@ class ReelService:
         v = info.primary_video
         g = geometry(clip, v.display_width, v.display_height)
         plan = plan_reframe(
-            clip, uri, self._decoder, v.display_width / v.display_height, g.video_aspect
+            clip,
+            uri,
+            self._decoder,
+            v.display_width / v.display_height,
+            g.video_aspect,
+            self._people,
         )
         clip.crop_path, clip.layout, clip.crop_version = (
             plan.keyframes,

@@ -330,3 +330,15 @@ A second creation mode next to Shorts: many clips or recordings in, one edited h
 - **Export:** the video, a `.txt` (title, description, chapters, hashtags, music, thumbnail idea, on-screen hook) and a thumbnail frame go to `Videos/SPHURA/<date> Highlight reel - <name>`. The copy is written by the LLM from the selected moments (generic hype and unbackable claims are rejected), with a template fallback.
 - **State and recovery:** a reel is one JSON document in the `reels` table (migration 0008). Analysis can be cancelled; a render can be cancelled at any point (the progress callback raises and kills FFmpeg). If SPHURA closes while picking or rendering, the reel returns to review on the next start with a message.
 - **Presets:** YouTube Shorts, Instagram Reels and TikTok (1080×1920), Landscape compilation (1920×1080), Square (1080×1080); 30 or 60 fps.
+
+## 20. Shorts Intelligence (research from public YouTube data)
+
+Learns what works in gaming Shorts from public data, as input for later editing decisions. Phase 1 covers research and observed performance; creative scoring (SSPI) and editing modes build on it.
+
+- **Source:** the official YouTube Data API v3 with the user's own API key (`infrastructure/research/youtube.py`; key in `<data_dir>/research.json` or `SPHURA_YOUTUBE_API_KEY`). Only public data: search results, video statistics, channel subscriber counts. No scraping, no downloads of other creators' videos, no private analytics. A refresh costs about 2,000 of the 10,000 free daily quota units.
+- **Refresh:** per game (`pipeline/research.py` `GAMES`), each query runs twice (most-viewed of all time, most-viewed in the last 30 days). New results must be ≤ 3 minutes and mention the game (God of War must say Ragnarök; older God of War games are excluded). The rule is re-applied when reading, so tightening it never needs a delete. Every refresh also re-measures all Shorts already tracked.
+- **Storage (migration 0009):** `research_videos` (one row per video id, metadata as JSON, first/last seen), `research_snapshots` (views, likes, comments, channel subscribers per collection time), `research_runs` (status, counts, quota, error).
+- **Observed Performance Score (OPS, 0–100):** percentiles within the same game: 40% log(views ÷ max(subscribers, 1,000)), 40% views ÷ √days since upload, 20% (likes + 2 × comments) ÷ views. Missing data re-weights the rest. Categories: viral (top 10% by views for the game, at least 100K), trending (≤ 30 days old and top 25% age-adjusted), small creator (< 50K subscribers and ≥ 10 views per subscriber), consistent (≥ 3 tracked Shorts from the channel with median OPS ≥ 60). Each category carries its reason.
+- **Patterns:** title features, length, title length and hashtags of the top quarter by OPS against the rest, flagged as a small sample under 20 Shorts. Correlations in metadata only.
+- **UI:** "Shorts Intelligence" in the sidebar: overview, a tab per game (category filters, metrics, change since last refresh, links), setup with key instructions and refresh history.
+

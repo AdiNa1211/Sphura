@@ -11,6 +11,7 @@ from sphura.application.feedback import FeedbackService
 from sphura.application.ingest import ChecksumHandler, IngestService
 from sphura.application.queries import QueryService
 from sphura.application.reels import ReelService
+from sphura.application.research import ResearchService
 from sphura.config import Settings, default_data_dir
 from sphura.domain.models import JobType
 from sphura.infrastructure.ai.accel import WhisperAccelChecker
@@ -18,6 +19,7 @@ from sphura.infrastructure.ai.acestep import AceStep
 from sphura.infrastructure.ai.acestep import default_root as default_acestep_root
 from sphura.infrastructure.ai.anthropic import AnthropicProvider
 from sphura.infrastructure.ai.ollama import OllamaProvider
+from sphura.infrastructure.ai.people import YoloxPeopleDetector
 from sphura.infrastructure.ai.whisper import FasterWhisperProvider
 from sphura.infrastructure.events.bus import InProcessEventBus
 from sphura.infrastructure.media.ffmpeg.audio import FFmpegAudioExtractor
@@ -41,6 +43,7 @@ from sphura.infrastructure.persistence.sqlite.repositories import (
     SqliteMediaAssetRepository,
     SqliteProjectRepository,
 )
+from sphura.infrastructure.persistence.sqlite.research import SqliteResearchRepository
 from sphura.infrastructure.queue.local_queue import LocalJobQueue
 from sphura.infrastructure.storage.local import LocalSourceReader, LocalWorkspaceStorage
 from sphura.migrate import migrate_legacy
@@ -72,6 +75,7 @@ class LocalEngine:
     downloads: DownloadManager
     ai_music: AceStep
     reels: ReelService
+    research: ResearchService
 
     def start(self) -> None:
         self.queue.start()
@@ -125,10 +129,16 @@ def build_local_engine(settings: Settings) -> LocalEngine:
     )
 
     clip_repo = SqliteClipRepository(db)
+    people = YoloxPeopleDetector(settings.models_dir / "people")
     queue.register(
         JobType.RENDER,
         RenderHandler(
-            clip_repo, assets, storage, FFmpegRenderer(toolchain), FFmpegFrameDecoder(toolchain)
+            clip_repo,
+            assets,
+            storage,
+            FFmpegRenderer(toolchain),
+            FFmpegFrameDecoder(toolchain),
+            people,
         ),
     )
     feedback_repo = SqliteFeedbackRepository(db)
@@ -194,7 +204,9 @@ def build_local_engine(settings: Settings) -> LocalEngine:
             lambda uri, times, width: sampler.sample(uri, times, width),
             llm,
             settings.data_dir,
+            people,
         ),
+        research=ResearchService(SqliteResearchRepository(db), settings.data_dir),
     )
 
 

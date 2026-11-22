@@ -68,6 +68,15 @@ class QueryService:
             raise NotFoundError("no transcript yet; run analyze first")
         return Transcript.from_dict(json.loads(path.read_text(encoding="utf-8")))
 
+    def transcript_version(self, project_id: str) -> int:
+        """Version of the transcription that made the saved transcript (0: none/unknown)."""
+        path = self._storage.artifact_path(project_id, "analysis", "manifest.json")
+        try:
+            entry = json.loads(path.read_text(encoding="utf-8")).get("transcribe") or {}
+            return int(entry.get("outputs", {}).get("version", 0))
+        except (OSError, ValueError, AttributeError):
+            return 0
+
     def signals(self, project_id: str) -> SignalTimeline:
         self.project(project_id)
         path = self._storage.artifact_path(project_id, "analysis", "signals.npz")

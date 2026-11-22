@@ -1,9 +1,10 @@
-"""Phase 7a: where to put a 9:16 window inside 16:9 gameplay, over time.
+"""Phase 7a: where to put a 9:16 window inside 16:9 footage, over time.
 
-Column-wise motion energy per low-res frame says where the action is. The camera is planned
-like an editor would: locked shots (Viterbi over window positions, with a cost for every
-move and a pull toward the centre, where the player usually is), joined by short eased
-pans. If action is spread across the whole frame, the clip is shown whole ("fit").
+People come first: when a detector finds them, the window keeps them in frame (bigger,
+closer people count more). Otherwise column-wise motion energy says where the action is.
+The camera moves like an editor's: locked shots (Viterbi over window positions, with a
+cost for every move and a pull toward the centre), joined by short eased pans.
+If the action is spread across the whole frame, the clip is shown whole ("fit").
 """
 
 from __future__ import annotations
@@ -15,9 +16,9 @@ import numpy as np
 import numpy.typing as npt
 
 from sphura.domain.models import Clip, CropKeyframe
-from sphura.ports.media import MediaDecoder
+from sphura.ports.media import MediaDecoder, PeopleDetector, PersonBox
 
-VERSION = 2  # bump when the camera planning changes, so saved paths are re-planned
+VERSION = 3  # bump when the camera planning changes, so saved paths are re-planned
 ANALYSIS_FPS = 8.0
 ANALYSIS_W, ANALYSIS_H = 320, 180
 TARGET_ASPECT = 9 / 16
@@ -33,6 +34,11 @@ MIN_PAN_S = 0.5
 # window AND the best window keeps hopping. Steady movement or camera pans stay "crop"
 FIT_MAX_COVERAGE = 0.7
 FIT_JITTER = 0.025
+PEOPLE_FPS = 3.0
+PEOPLE_W, PEOPLE_H = 640, 360
+PEOPLE_HOLD_S = 1.0  # keep a person through brief misses (splashes, motion blur)
+MOTION_WEIGHT = 0.15  # with people in shot, motion only breaks ties
+EMPTY_WEIGHT = 0.3  # moments without people (in a clip that has them) barely pull the camera
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +55,7 @@ def plan_reframe(
     decoder: MediaDecoder,
     display_aspect: float,
     target_aspect: float = TARGET_ASPECT,
+    people: PeopleDetector | None = None,
 ) -> ReframePlan:
     """display_aspect = width / height of the source as displayed; target_aspect = the
     footage area of the output."""
@@ -74,14 +81,117 @@ def plan_reframe(
         return ReframePlan([CropKeyframe(0.0, 0.5, 0.5)], "crop", 1.0)
 
     prof = np.stack(profiles)
-    _, coverage, jitter = _best_windows(prof, win)
-    layout = "fit" if coverage < FIT_MAX_COVERAGE and jitter > FIT_JITTER else "crop"
-    path = camera_path(prof, win, 1 / ANALYSIS_FPS)
+    found = _people_profiles(clip, source_uri, decoder, people, display_aspect, len(prof), win)
+    if found is not None:
+        crowd, groups = found
+        gain, coverage = _people_gain(prof, crowd, win)
+        layout = "fit" if coverage < FIT_MAX_COVERAGE and _group(groups) else "crop"
+        jitter = 0.0
+    else:
+        _, coverage, jitter = _best_windows(prof, win)
+        layout = "fit" if coverage < FIT_MAX_COVERAGE and jitter > FIT_JITTER else "crop"
+        gain = _captured(prof, win)
+    path = camera_path(gain, win, 1 / ANALYSIS_FPS)
     keyframes = [
         CropKeyframe(round(i / ANALYSIS_FPS, 3), round(float(x), 4), 0.5)
         for i, x in enumerate(path)
     ]
     return ReframePlan(keyframes, layout, coverage, jitter)
+
+
+def _people_profiles(
+    clip: Clip,
+    uri: str,
+    decoder: MediaDecoder,
+    people: PeopleDetector | None,
+    display_aspect: float,
+    n: int,
+    win: float,
+) -> tuple[npt.NDArray[np.float32], list[bool]] | None:
+    """(n, BINS) column weight of people on the motion samples' clock, plus per detection
+    whether it was a group that can't share one window. None: no detector, or nobody."""
+    if people is None:
+        return None
+    pad = (1 - min(1.0, display_aspect / (PEOPLE_W / PEOPLE_H))) / 2  # pillarbox, if any
+    found: list[tuple[float, npt.NDArray[np.float32]]] = []
+    groups: list[bool] = []
+    offset = 0.0
+    for seg in clip.render_segments():
+        for batch in decoder.iter_proxy_frames(
+            uri, seg.start_s, seg.duration_s, PEOPLE_FPS, PEOPLE_W, PEOPLE_H, 8
+        ):
+            size = PEOPLE_W * PEOPLE_H * 3
+            for k, t in enumerate(batch.timestamps_s):
+                boxes = people.detect(batch.rgb[k * size : (k + 1) * size], PEOPLE_W, PEOPLE_H)
+                if boxes is None:
+                    return None
+                found.append((offset + t, _columns(boxes, pad)))
+                if boxes:
+                    groups.append(_apart(boxes, pad, win))
+        offset += seg.duration_s
+    if not any(c.any() for _, c in found):
+        return None
+    times = np.array([t for t, _ in found])
+    cols = np.stack([c for _, c in found])
+    out = np.zeros((n, BINS), np.float32)
+    last: npt.NDArray[np.float32] | None = None
+    last_t = -1e9
+    for i in range(n):
+        t = i / ANALYSIS_FPS
+        j = int(np.argmin(np.abs(times - t)))
+        if abs(times[j] - t) <= 0.5 / PEOPLE_FPS + 1e-6 and cols[j].any():
+            last, last_t = cols[j], times[j]
+        if last is not None and t - last_t <= PEOPLE_HOLD_S:
+            out[i] = last
+    return out, groups
+
+
+def _columns(boxes: list[PersonBox], pad: float) -> npt.NDArray[np.float32]:
+    """Each person as a tent over their width (centre matters most), weighted by
+    confidence and size: the closest, clearest person is the subject."""
+    centres = (np.arange(BINS) + 0.5) / BINS
+    out = np.zeros(BINS, np.float32)
+    span = max(1 - 2 * pad, 1e-6)
+    for b in boxes:
+        x0, x1 = (b.x0 - pad) / span, (b.x1 - pad) / span
+        w = max(x1 - x0, 1e-3)
+        size = w * (b.y1 - b.y0)
+        if size < 0.002:  # specks: far background people, false hits
+            continue
+        tent = np.clip(1 - np.abs(centres - (x0 + x1) / 2) / (w / 2), 0, None)
+        if tent.sum() > 0:
+            out += (tent / tent.sum() * b.score * size**0.75).astype(np.float32)
+    return out
+
+
+def _people_gain(
+    motion: npt.NDArray[np.float32], crowd: npt.NDArray[np.float32], win: float
+) -> tuple[npt.NDArray[np.float64], float]:
+    """Per-sample reward: people captured, motion as a tie-breaker; samples with nobody
+    count little, so splashes and flashes can't drag the camera off the subject."""
+    cap_p = _captured(crowd, win)
+    cap_m = _captured(motion, win)
+    has = crowd.sum(axis=1) > 1e-6
+    gain = np.where(has[:, None], cap_p + MOTION_WEIGHT * cap_m, EMPTY_WEIGHT * cap_m)
+    coverage = float(np.median(cap_p[has].max(axis=1))) if has.any() else 1.0
+    return gain, coverage
+
+
+def _apart(boxes: list[PersonBox], pad: float, win: float) -> bool:
+    """Two or more equally prominent people too far apart for one window. When one person
+    clearly dominates (a close-up speaker), cropping to them reads better than a letterbox."""
+    span = max(1 - 2 * pad, 1e-6)
+    sizes = [(b.x1 - b.x0) * (b.y1 - b.y0) for b in boxes]
+    big = [b for b, a in zip(boxes, sizes, strict=True) if a >= max(sizes) * 0.5]
+    if len(big) < 2:
+        return False
+    lo = min((b.x0 - pad) / span for b in big)
+    hi = max((b.x1 - pad) / span for b in big)
+    return hi - lo > win * 1.15
+
+
+def _group(groups: list[bool]) -> bool:
+    return bool(groups) and sum(groups) > len(groups) / 2
 
 
 def motion_profile(diff: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
@@ -126,11 +236,13 @@ def _best_windows(
     return best, coverage, jitter
 
 
-def camera_path(prof: npt.NDArray[np.float32], win: float, dt: float) -> npt.NDArray[np.float64]:
-    """Locked shots chosen by Viterbi (reward: motion captured; costs: distance from centre
-    and every move), then joined with short eased pans centred on each cut point."""
+def camera_path(
+    captured: npt.NDArray[np.float64], win: float, dt: float
+) -> npt.NDArray[np.float64]:
+    """Locked shots chosen by Viterbi (reward: share of the subject in frame, per sample x
+    position; costs: distance from centre and every move), joined with short eased pans."""
     pos = _positions(win)
-    gain = _captured(prof, win) - CENTER_COST * (pos[None, :] - 0.5) ** 2
+    gain = captured - CENTER_COST * (pos[None, :] - 0.5) ** 2
     move = MOVE_COST_S / dt  # in samples of full reward
     n, m = gain.shape
     score = gain[0].copy()

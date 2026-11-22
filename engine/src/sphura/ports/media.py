@@ -129,3 +129,18 @@ class ReelCompiler(Protocol):
     ) -> RenderOutcome:
         """joins[i]: crossfade length between part i and i+1 (a few frames = a cut)."""
         ...
+
+
+@dataclass(frozen=True, slots=True)
+class PersonBox:
+    x0: float  # 0..1 of frame width/height
+    y0: float
+    x1: float
+    y1: float
+    score: float
+
+
+class PeopleDetector(Protocol):
+    def detect(self, rgb: bytes, width: int, height: int) -> list[PersonBox] | None:
+        """People in one RGB frame, or None when the detector isn't available."""
+        ...

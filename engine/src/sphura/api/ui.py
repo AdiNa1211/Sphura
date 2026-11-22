@@ -508,6 +508,32 @@ def build_router(dependencies: list[Any]) -> APIRouter:
     def reel_projects(engine: Engine) -> list[str]:
         return engine.reels.hidden_projects()
 
+    @r.get("/v1/research", dependencies=dependencies)
+    def research_overview(engine: Engine) -> dict[str, Any]:
+        return engine.research.overview()
+
+    @r.get("/v1/research/status", dependencies=dependencies)
+    def research_status(engine: Engine) -> dict[str, Any]:
+        return engine.research.status()
+
+    @r.put("/v1/research/key", dependencies=dependencies)
+    def research_key(body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        return engine.research.set_key(str(body.get("key") or ""))
+
+    @r.post("/v1/research/refresh", dependencies=dependencies)
+    def research_refresh(body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        return engine.research.refresh(body.get("games") or None)
+
+    @r.get("/v1/research/videos", dependencies=dependencies)
+    def research_videos(
+        engine: Engine, game: str, category: str | None = None
+    ) -> list[dict[str, Any]]:
+        return engine.research.videos(game, category)
+
+    @r.get("/v1/research/videos/{video_id}/history", dependencies=dependencies)
+    def research_history(video_id: str, engine: Engine) -> list[dict[str, Any]]:
+        return engine.research.history(video_id)
+
     @r.get("/v1/reels/branding", dependencies=dependencies)
     def reel_branding(engine: Engine) -> dict[str, str]:
         return engine.reels.branding()

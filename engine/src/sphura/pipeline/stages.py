@@ -23,6 +23,7 @@ from sphura.domain.transcript import (
     segment_from_dict,
     segment_to_dict,
 )
+from sphura.pipeline.hinglish import romanize
 from sphura.pipeline.manifest import StageManifest, stage_key
 from sphura.pipeline.wav import WavFile
 from sphura.ports.ai import TranscriptionProvider
@@ -185,7 +186,7 @@ def drop_repetition_loops(segments: list[TranscriptSegment]) -> list[TranscriptS
 
 class TranscribeStage:
     name = "transcribe"
-    version = 2  # v2: per-window language, gap splitting, confidence filter
+    version = 3  # v3: Hinglish (Hindi windows transcribed as Hindi, then romanized)
     _LANG_WINDOWS = 8
     _LANG_WINDOW_S = 30.0
 
@@ -253,6 +254,7 @@ class TranscribeStage:
                 segs = self._provider.transcribe(
                     wav.read(c.start_s, c.end_s), wav.sample_rate, language, c.start_s, on_chunk
                 )
+                segs = [t for s in segs if (t := _tidy(s)).text]
                 done[c.index] = segs
                 f.write(
                     json.dumps(
@@ -281,7 +283,11 @@ class TranscribeStage:
         tmp = out_path.with_suffix(".tmp")
         tmp.write_text(json.dumps(transcript.to_dict(), ensure_ascii=False))
         os.replace(tmp, out_path)
-        manifest.mark(self.name, key, {"files": [str(out_path)], "segments": len(segments)})
+        manifest.mark(
+            self.name,
+            key,
+            {"files": [str(out_path)], "segments": len(segments), "version": self.version},
+        )
         return transcript
 
     def _detect_language(self, wav: WavFile) -> tuple[str, float]:
@@ -320,3 +326,28 @@ class TranscribeStage:
             elif rec.get("type") == "chunk" and header is not None:
                 done[int(rec["index"])] = [segment_from_dict(s) for s in rec["segments"]]
         return header, done
+
+
+def _tidy(seg: TranscriptSegment) -> TranscriptSegment:
+    """Captions stay in Roman script (Hindi as Hinglish: "bhai", never "brother"), without
+    stutter loops ("aan aan aan aan") or characters Whisper cut in half."""
+    words = [replace(w, text=romanize(w.text).replace("\ufffd", "")) for w in seg.words]
+    keep = [w for w in _drop_word_loops(words) if w.text]
+    text = romanize(seg.text).replace("\ufffd", "").strip()
+    if len(keep) != len(seg.words):
+        text = " ".join(w.text for w in keep)
+    return replace(seg, text=text, words=tuple(keep))
+
+
+def _drop_word_loops(words: list[TranscriptWord], limit: int = 4) -> list[TranscriptWord]:
+    out: list[TranscriptWord] = []
+    i = 0
+    while i < len(words):
+        j = i
+        key = _norm(words[i].text)
+        while j < len(words) and _norm(words[j].text) == key:
+            j += 1
+        if j - i < limit or not key:
+            out += words[i:j]
+        i = j
+    return out

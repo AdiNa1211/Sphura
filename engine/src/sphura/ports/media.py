@@ -94,3 +94,38 @@ class VideoRenderer(Protocol):
         out_path: Path,
         on_progress: Callable[[float], None],
     ) -> RenderOutcome: ...
+
+
+@dataclass(frozen=True, slots=True)
+class ReelPart:
+    """One piece of a compilation, already rendered (or an intro/outro clip)."""
+
+    path: Path
+    duration_s: float
+    has_audio: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class ReelMusic:
+    path: Path
+    offset_s: float  # where to start reading the file (lines its beats up with the cuts)
+    start_s: float  # where it comes in on the reel, e.g. after an intro
+    end_s: float  # where it has faded out, e.g. before an outro
+    gain_db: float = -13.0
+
+
+class ReelCompiler(Protocol):
+    def compile(
+        self,
+        parts: list[ReelPart],
+        joins: list[float],
+        size: tuple[int, int],
+        fps: int,
+        music: ReelMusic | None,
+        watermark_text: str,
+        watermark_logo: Path | None,
+        out_path: Path,
+        on_progress: Callable[[float], None],
+    ) -> RenderOutcome:
+        """joins[i]: crossfade length between part i and i+1 (a few frames = a cut)."""
+        ...

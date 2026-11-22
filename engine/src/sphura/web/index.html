@@ -123,6 +123,46 @@
   .drop { margin-top: 12px; border: 2px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; color: var(--muted); }
   .drop.over { border-color: var(--accent); color: var(--text); }
   .empty { text-align: center; padding: 40px; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius); }
+  .rlsteps { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 12px 0 16px; }
+  .rlstep { padding: 8px 10px; border-radius: 8px; background: var(--panel2); border: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+  .rlstep b { display: block; font-size: 11px; opacity: .8; }
+  .rlstep.on { border-color: var(--accent); color: var(--text); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .rlstep.done { color: var(--good); } .rlstep.click { cursor: pointer; } .rlstep.click:hover { border-color: #3c4252; }
+  .rldrop { border: 2px dashed var(--line); border-radius: 12px; padding: 26px; text-align: center; color: var(--muted); }
+  .rldrop.over { border-color: var(--accent); color: var(--text); background: rgba(255,90,54,.06); }
+  table.rlq { width: 100%; border-collapse: collapse; }
+  .rlq td, .rlq th { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: left; font-size: 13px; vertical-align: middle; }
+  .rlq th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .rlq td.num { white-space: nowrap; }
+  .rlq button { padding: 3px 8px; font-size: 12px; }
+  .rlbar { height: 6px; border-radius: 6px; background: #2a2e3a; overflow: hidden; min-width: 120px; }
+  .rlbar i { display: block; height: 100%; background: var(--accent); transition: width .4s; }
+  .rlbar.ok i { background: var(--good); }
+  .rlm { display: grid; grid-template-columns: 210px 1fr 170px; gap: 14px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 10px; background: var(--panel); }
+  .rlm.off { opacity: .55; } .rlm.dup { opacity: .4; }
+  .rlm .th { aspect-ratio: 16/9; background: #000 center/cover no-repeat; border-radius: 8px; position: relative; cursor: pointer; }
+  .rlm .th span { position: absolute; bottom: 6px; right: 6px; background: rgba(0,0,0,.75); padding: 1px 6px; border-radius: 5px; font-size: 11px; }
+  .rlm .th::after { content: "▶"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 26px; color: #fff; opacity: 0; transition: opacity .2s; }
+  .rlm .th:hover::after { opacity: .9; }
+  .rlm input[type=number] { width: 74px; padding: 4px 6px; }
+  .score { font-weight: 800; font-size: 22px; line-height: 1; } .score small { font-size: 12px; color: var(--muted); font-weight: 400; }
+  .rlseq { display: grid; grid-template-columns: 34px 120px 1fr auto; gap: 10px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; background: var(--panel); }
+  .rlseq .th { aspect-ratio: 16/9; background: #000 center/cover no-repeat; border-radius: 6px; cursor: pointer; }
+  .rlseq .n { font-weight: 800; font-size: 18px; text-align: center; color: var(--muted); }
+  .rlseq input[type=number] { width: 70px; padding: 3px 6px; }
+  .rlseq button { padding: 3px 8px; font-size: 12px; }
+  .rlgrid2 { display: grid; grid-template-columns: 1fr 380px; gap: 16px; align-items: start; }
+  .rlopt label { display: block; margin: 6px 0; font-size: 13px; }
+  .rlopt select, .rlopt input[type=text] { width: 100%; }
+  .rlpresets { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 6px; }
+  .rlpresets div { border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; cursor: pointer; font-size: 12px; background: var(--panel2); }
+  .rlpresets div.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .rlpresets b { display: block; font-size: 13px; }
+  .rlmodal { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: flex; align-items: center; justify-content: center; z-index: 50; }
+  .rlmodal .box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; width: min(920px, 92vw); }
+  .rlmodal video, .rlplayer video { width: 100%; max-height: 62vh; background: #000; border-radius: 8px; display: block; }
+  .rlout { display: grid; grid-template-columns: minmax(260px, 420px) 1fr; gap: 16px; align-items: start; }
+  .rlout textarea { width: 100%; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #222633;
            border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; }
   .toast.show { opacity: 1; }
@@ -149,13 +189,54 @@
   .edlab { position: absolute; left: 2px; top: -15px; font-size: 10px; color: var(--muted); z-index: 0; }
   .edblk { position: absolute; top: 4px; height: 26px; border-radius: 5px; font-size: 12px; overflow: hidden; white-space: nowrap; display: flex; align-items: center; cursor: grab; user-select: none; }
   .edblk span { padding: 0 10px; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
-  .edblk.seg { background: #2b3550; border: 1px solid #3d4a70; }
+  .edblk.seg { background: #2b3550; border: 1px solid #3d4a70; height: 40px; }
+  .edfilm { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  .edfilm img { position: absolute; top: 0; height: 100%; object-fit: cover; opacity: .9; }
+  .edblk.seg span { position: relative; z-index: 1; margin-left: 12px; padding: 1px 6px; background: rgba(0,0,0,.6); border-radius: 4px; font-size: 11px; }
+  .edblk.seg.on { border: 2px solid #fff; box-shadow: none; }
+  .edblk.seg.on .h { background: #fff; background-image: linear-gradient(90deg, transparent 4px, #333 4px, #333 6px, transparent 6px); width: 12px; }
+  .edframe.live video#edvid { object-fit: cover; }
+  .edlive { position: absolute; left: 8px; top: 8px; z-index: 3; background: rgba(0,0,0,.7); color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 6px; pointer-events: none; }
+  .edtrimv { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; z-index: 4; }
+  .edtrimlab { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 5; background: rgba(0,0,0,.75); color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 13px; white-space: nowrap; }
   .edblk.teaser { background: #3a2410; color: var(--accent2); border: 1px dashed #6a4520; padding-left: 6px; cursor: default; }
   .edblk.txt { height: 22px; background: #3a1f4a; border: 1px solid #6b3d87; }
+  .edblk.aud { background: #12302a; border: 1px solid #1f5246; color: #3ddc97; }
+  .edblk.aud.tz { border-style: dashed; cursor: default; opacity: .8; }
+  .edblk.mus { background: #241f3c; border: 1px solid #463b72; color: #a78bfa; cursor: pointer; }
+  .edblk.aud span, .edblk.mus span { position: relative; z-index: 1; color: var(--text); text-shadow: 0 1px 2px #000; }
+  .edwave { position: absolute; left: 0; top: 2px; width: 100%; height: calc(100% - 4px); pointer-events: none; }
+  .edwave polygon { fill: currentColor; opacity: .5; }
+  .edbeat { position: absolute; bottom: 0; width: 1px; height: 7px; background: rgba(255,255,255,.4); pointer-events: none; }
+  .eddip { position: absolute; top: 0; bottom: 0; background: rgba(0,0,0,.5); pointer-events: none; }
+  .ednone { position: absolute; left: 10px; top: 10px; font-size: 12px; color: var(--muted); }
+  .edblk.mom { height: 22px; background: #2e2913; border: 1px solid #6d5d1f; color: #f5d76e; cursor: pointer; }
+  .edblk.mom.in { opacity: .45; }
+  .edblk.pick { background: rgba(255,106,61,.2); border: 1px dashed var(--accent); pointer-events: none; z-index: 2; }
+  .edblk.seg.src { background: rgba(255,106,61,.35); border-color: var(--accent); }
+  .edblk.seg.src span { padding: 0 4px; }
+  .edmodes { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-bottom: 10px; }
+  .edmodes button { border: 0; border-radius: 0; background: transparent; padding: 7px 14px; }
+  .edmodes button.on { background: var(--accent); color: #fff; }
+  .edbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; width: 100%; }
+  .edbar .sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
+  .edbar kbd { font-size: 10px; opacity: .6; margin-left: 4px; }
+  .edbar .note { font-size: 12px; color: var(--muted); }
+  .edhelp { margin: 6px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.45; }
+  .edhelp li { margin-bottom: 8px; }
+  .edmark { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #ffd34d; pointer-events: none; z-index: 2; }
+  .edmark::after { position: absolute; top: -14px; left: -4px; font-size: 10px; color: #ffd34d; content: attr(data-l); }
   .edblk.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
-  .edblk .h { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: rgba(255,255,255,.12); }
+  .edblk .h { position: absolute; top: 0; bottom: 0; width: 10px; cursor: ew-resize; background: rgba(255,255,255,.18);
+    background-image: linear-gradient(90deg, transparent 3px, rgba(255,255,255,.55) 3px, rgba(255,255,255,.55) 4px, transparent 4px, transparent 6px, rgba(255,255,255,.55) 6px, rgba(255,255,255,.55) 7px, transparent 7px); }
+  .edblk .h:hover { background-color: var(--accent); }
   .edblk .h.l { left: 0; } .edblk .h.r { right: 0; }
-  .edph { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); pointer-events: none; }
+  .edph { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); pointer-events: none; z-index: 3; }
+  .edphh { position: absolute; top: 0; left: -7px; width: 16px; height: 20px; pointer-events: auto; cursor: ew-resize; background: var(--accent);
+    clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%); }
+  .edruler, .edtrack { cursor: ew-resize; }
+  .edtrack .edblk { cursor: grab; } .edtrack .edblk.tz { cursor: default; } .edtrack .edblk.mus { cursor: pointer; }
+  body.edscrub, body.edscrub * { cursor: ew-resize !important; user-select: none; }
   .edrow { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .edrow label { width: 64px; font-size: 13px; color: var(--muted); }
   .edrow input[type=number] { width: 72px; }
@@ -172,6 +253,7 @@
     <button class="primary" style="width:100%" onclick="showNew()">+ New stream</button>
     <button style="width:100%; margin-top:8px" onclick="showDownloads('queue')">⬇ Downloads</button>
     <button style="width:100%; margin-top:8px" onclick="showMusic()">♪ Music</button>
+    <button style="width:100%; margin-top:8px" onclick="showReels()" title="Turn many clips into one edited highlight video">★ Highlight reel</button>
     <h3>Your streams</h3>
     <div id="projects"><div class="muted small">Loading…</div></div>
   </aside>
@@ -220,7 +302,8 @@ async function loadStatus() {
 }
 
 async function loadProjects() {
-  const ps = await api("/v1/projects");
+  const hidden = new Set(await api("/v1/reels/hidden-projects").catch(() => []));
+  const ps = (await api("/v1/projects")).filter(p => !hidden.has(p.id)); // reel sources stay in their reel
   $("#projects").innerHTML = ps.length ? ps.map(p => `
     <div class="proj ${state.project?.id === p.id ? "active" : ""}" onclick="openProject('${p.id}')">
       <div class="name" title="${esc(p.name)}">${esc(p.name)}</div>
@@ -231,6 +314,8 @@ async function loadProjects() {
 
 // ---------- New stream ----------
 async function showNew() {
+  if (!edLeaveOk()) return;
+  rlStop();
   leaveDownloads();
   stopPolling(); state.project = null; loadProjects();
   $("#main").innerHTML = `
@@ -295,6 +380,8 @@ function res(d) { return d.height ? `${d.height}p${d.fps > 31 ? Math.round(d.fps
 function dlThumb(d) { return d.thumbnail_path || d.thumbnail_url ? `/v1/downloads/${d.id}/thumb.jpg` : ""; }
 
 async function showDownloads(tab) {
+  if (!edLeaveOk()) return;
+  rlStop();
   stopPolling(); state.project = null; loadProjects();
   state.dl = { tab: tab || state.dl?.tab || "queue", sig: {}, playing: null, confirm: null, data: null };
   history.replaceState(null, "", state.dl.tab === "library" ? "#downloads/library" : "#downloads");
@@ -549,6 +636,8 @@ async function dlSaveSettings() {
 
 // ---------- Project ----------
 async function openProject(id) {
+  if (!edLeaveOk()) return;
+  rlStop();
   leaveDownloads();
   stopPolling();
   const p = await api(`/v1/projects/${id}`);
@@ -567,7 +656,7 @@ async function openProject(id) {
     const a = assets[0], d = a.media_info?.duration_s;
     $("#psub").textContent = `${a.source_uri}${d ? " · " + hms(d) : ""} · ${size(a.size_bytes)}`;
   }
-  refresh();
+  state._momentsShown = false; refresh();
 }
 function setTab(t) { state.tab = t; document.querySelectorAll(".tab").forEach((el, i) => el.classList.toggle("active", (i === 0) === (t === "moments"))); renderTab(); }
 
@@ -577,8 +666,11 @@ async function refresh() {
   const an = jobs.filter(j => j.type === "analyze").sort((a, b) => a.created_at < b.created_at ? 1 : -1)[0];
   renderPipeline(an);
   const busy = an && !["succeeded", "failed", "cancelled"].includes(an.status);
-  if (state.tab === "shorts") await renderShorts(); else if (!state._momentsShown || !busy) await renderMoments(an);
-  schedule(busy || state._shortsBusy ? 1500 : 0);
+  // Redraw Best moments only when the analysis changes: a redraw closes any open dropdown
+  const key = an ? `${an.id}|${an.status}` : "";
+  if (state.tab === "shorts") await renderShorts();
+  else if (!state._momentsShown || state._momKey !== key) { state._momKey = key; await renderMoments(an); }
+  schedule(busy || (state.tab === "shorts" && state._shortsBusy) ? 1500 : 0);
 }
 function schedule(ms) { stopPolling(); if (ms) state.timer = setTimeout(refresh, ms); }
 function leaveDownloads() { state.dl = null; if (/^#(downloads|edit\/)/.test(location.hash)) history.replaceState(null, "", location.pathname); }
@@ -797,6 +889,8 @@ let musicCache = null;
 async function loadMusic(force) { if (!musicCache || force) musicCache = await api("/v1/music"); return musicCache; }
 
 async function showMusic() {
+  if (!edLeaveOk()) return;
+  rlStop();
   leaveDownloads();
   stopPolling(); state.project = null; loadProjects();
   $("#main").innerHTML = `<h1>Music</h1>
@@ -927,19 +1021,399 @@ async function saveMusic(id, btn) {
   } catch (e) { toast("Error: " + e.message); if (btn) { btn.disabled = false; btn.textContent = "Apply & re-render"; } }
 }
 
+// ---------- AI Highlight Reel ----------
+const RL = { r: null, timer: null, step: 1, save: null, seq: null };
+const RL_STEPS = ["Import videos", "AI analysis", "Review highlights", "Customize & arrange", "Generate video", "Preview & export"];
+const RL_BUSY = ["analysing", "picking", "rendering"];
+const RL_LENGTHS = [30, 60, 90, 180];
+function rlStop() { clearTimeout(RL.timer); RL.timer = null; RL.seq = null; }
+
+async function showReels() {
+  if (!edLeaveOk()) return;
+  stopPolling(); leaveDownloads(); rlStop(); state.project = null; loadProjects();
+  history.replaceState(null, "", "#reels");
+  const reels = await api("/v1/reels").catch(() => []);
+  const label = { importing: "Adding videos", analysing: "Analysing", picking: "Picking moments", review: "Ready to review", rendering: "Generating", done: "Done" };
+  $("#main").innerHTML = `
+    <div class="row"><div class="grow"><h1>AI Highlight Reel</h1>
+      <div class="sub" style="margin:0">Give SPHURA a bunch of clips or recordings. It finds the best moments across all of them and edits one highlight video: hook first, best moment last, cuts on the beat.</div></div>
+      <button class="primary" onclick="rlNew()">+ New highlight reel</button></div>
+    <div style="margin-top:16px">${reels.length ? reels.map(r => `
+      <div class="rec"><div class="grow"><div class="name">${esc(r.name)}</div>
+        <div class="small muted">${r.sources} video${r.sources === 1 ? "" : "s"} · ${esc(label[r.status] || r.status)}${r.created_at ? " · " + new Date(r.created_at).toLocaleString() : ""}</div></div>
+        <button onclick="openReel('${r.id}')">Open</button>
+        <button class="ghost" onclick="rlDelete('${r.id}', true)">Delete</button></div>`).join("")
+      : `<div class="card muted">No highlight reels yet. Press <b>+ New highlight reel</b> to start.</div>`}</div>`;
+}
+async function rlNew() { try { const r = await api("/v1/reels", { method: "POST", body: {} }); openReel(r.id, 1); } catch (e) { toast(e.message); } }
+async function rlDelete(id, list) {
+  if (!confirm("Delete this highlight reel? Uploaded copies of videos are removed too; your original files and any exported video stay.")) return;
+  try { await api(`/v1/reels/${id}`, { method: "DELETE" }); toast("Deleted"); showReels(); } catch (e) { toast(e.message); }
+}
+
+async function openReel(id, step) {
+  if (!edLeaveOk()) return;
+  stopPolling(); leaveDownloads(); rlStop(); state.project = null; loadProjects();
+  history.replaceState(null, "", "#reel/" + id);
+  try { RL.r = await api(`/v1/reels/${id}`); } catch (e) { $("#main").innerHTML = `<div class="card err">${esc(e.message)}</div>`; return; }
+  RL.step = step || rlAutoStep(); rlRender(); rlPoll();
+}
+function rlAutoStep() {
+  return { importing: 1, analysing: 2, picking: 2, review: 3, rendering: 5, done: 6 }[RL.r.status] || 1;
+}
+function rlPoll() {
+  rlStop();
+  if (!RL_BUSY.includes(RL.r.status)) return;
+  RL.timer = setTimeout(async () => {
+    if (!$("#rlbody") || !RL.r) return;
+    const before = RL.r.status;
+    try { RL.r = await api(`/v1/reels/${RL.r.id}`); } catch { return rlPoll(); }
+    if (RL.r.status !== before) { RL.step = rlAutoStep(); rlRender(); } else rlBody();
+    rlPoll();
+  }, 1500);
+}
+async function rlCall(path, body, method = "POST") {
+  try { RL.r = await api(`/v1/reels/${RL.r.id}${path}`, { method, body }); return true; }
+  catch (e) { toast(e.message); return false; }
+}
+
+function rlRender() {
+  const r = RL.r, busy = RL_BUSY.includes(r.status), hasM = r.moments.length > 0;
+  const can = [!busy, r.status === "analysing" || r.status === "picking", !busy && hasM, !busy && hasM, r.status === "rendering", !!r.output && !busy];
+  const done = [r.sources.length > 0, hasM, hasM && r.picks_edited, false, !!r.output, false];
+  $("#main").innerHTML = `
+    <div class="row"><button onclick="showReels()">← All reels</button>
+      <input type="text" class="grow" style="font-size:18px;font-weight:700" value="${esc(r.name)}" onchange="rlCall('', {name: this.value}, 'PATCH')" title="Rename">
+      <button class="ghost" onclick="rlDelete('${r.id}')">Delete</button></div>
+    <div class="rlsteps">${RL_STEPS.map((t, i) => `<div class="rlstep ${RL.step === i + 1 ? "on" : ""} ${done[i] && RL.step !== i + 1 ? "done" : ""} ${can[i] && RL.step !== i + 1 ? "click" : ""}"
+      ${can[i] ? `onclick="RL.step=${i + 1};rlRender()"` : ""}><b>Step ${i + 1}</b>${t}</div>`).join("")}</div>
+    ${r.render?.error && !busy ? `<div class="card err">${r.render.error === "Cancelled" ? "Generating was cancelled." : esc(r.render.error)}</div>` : ""}
+    <div id="rlbody"></div>`;
+  rlBody();
+}
+function rlBody() {
+  const el = $("#rlbody"); if (!el) return;
+  [rlImport, rlAnalysis, rlReview, rlArrange, rlGenerating, rlExport][RL.step - 1](el);
+}
+
+// Step 1: import
+function rlImport(el) {
+  const r = RL.r, ready = r.sources.filter(s => s.project_id), total = ready.reduce((t, s) => t + (s.duration || 0), 0);
+  el.innerHTML = `
+    <div class="card">
+      <div class="rldrop" id="rldrop">
+        <div style="font-size:16px;color:var(--text);margin-bottom:6px">Drop video files here</div>
+        <div class="small">MP4, MOV, MKV, WebM, AVI. Add as many as you like: 10–20 recordings works great.</div>
+        <div class="row" style="justify-content:center;margin-top:12px"><button class="primary" onclick="rlPick(this)">Add videos…</button></div>
+      </div>
+      <div class="row" style="margin-top:10px"><input type="text" id="rlpath" class="grow" placeholder="Or paste a file path, e.g. D:\\\\clips\\\\clutch.mp4">
+        <button onclick="rlAddPath()">Add</button></div>
+      <div id="rlup"></div>
+    </div>
+    <div class="card">
+      <div class="row" style="margin-bottom:8px"><h2 class="grow" style="margin:0">Videos (${r.sources.length})</h2>
+        <span class="small muted">${ready.length} ready · ${hms(total)} of footage</span></div>
+      ${r.sources.length ? `<table class="rlq"><tr><th></th><th>Video</th><th>Length</th><th>Resolution</th><th>Size</th><th>Status</th><th></th></tr>
+        ${r.sources.map((s, i) => `<tr>
+          <td class="num"><button title="Move up" ${i ? "" : "disabled"} onclick="rlMove('${s.id}',${i - 1})">↑</button><button title="Move down" ${i < r.sources.length - 1 ? "" : "disabled"} onclick="rlMove('${s.id}',${i + 1})">↓</button></td>
+          <td><b style="word-break:break-all">${esc(s.name)}</b>${s.error ? `<div class="small err">${esc(s.error)}</div>` : ""}</td>
+          <td class="num">${s.duration ? hms(s.duration) : "–"}</td>
+          <td class="num">${s.width ? `${s.width}×${s.height}${s.fps ? ` · ${Math.round(s.fps)} fps` : ""}` : "–"}</td>
+          <td class="num">${s.size ? size(s.size) : "–"}</td>
+          <td>${rlSourceStatus(s)}</td>
+          <td class="num">${s.project_id ? `<button onclick="rlPreview('${s.id}')">▶ Preview</button>` : ""} <button title="Remove" onclick="rlRemove('${s.id}')">✕</button></td></tr>`).join("")}</table>`
+      : `<div class="muted">No videos yet.</div>`}
+      <div class="row" style="margin-top:14px"><div class="grow small muted">Each video is analysed on its own (speech, action, AI judge), two at a time. Videos you analysed before are reused instantly.</div>
+        ${r.moments.length ? `<button onclick="RL.step=3;rlRender()">Back to the highlights →</button>` : ""}
+        <button class="primary" ${ready.length ? "" : "disabled"} onclick="rlAnalyse()">Find highlights ▶</button></div>
+    </div>`;
+  const drop = $("#rldrop");
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+  drop.ondragleave = () => drop.classList.remove("over");
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); rlUpload([...e.dataTransfer.files]); };
+}
+function rlSourceStatus(s) {
+  const st = { ready: ["Ready", "b-strong"], failed: ["Can't use", "b-hype"], queued: ["Waiting", "b-maybe"], analysing: ["Analysing", "b-top"], done: ["Analysed", "b-strong"] }[s.status] || [s.status, "b-maybe"];
+  return `<span class="badge ${st[1]}">${st[0]}</span>`;
+}
+async function rlPick(btn) {
+  btn.disabled = true; btn.textContent = "Choose in the window that opened…";
+  if (await rlCall("/choose-files")) rlRender(); else { btn.disabled = false; btn.textContent = "Add videos…"; }
+}
+async function rlAddPath() {
+  const p = $("#rlpath").value.trim().replace(/^"|"$/g, ""); if (!p) return;
+  if (await rlCall("/sources", { paths: [p] })) rlRender();
+}
+async function rlMove(sid, index) { if (await rlCall(`/sources/${sid}/move`, { index })) rlBody(); }
+async function rlRemove(sid) { if (await rlCall(`/sources/${sid}`, undefined, "DELETE")) rlRender(); }
+async function rlUpload(files) {
+  const vids = files.filter(f => /\.(mp4|mov|mkv|webm|avi|m4v|ts|flv)$/i.test(f.name));
+  if (files.length && !vids.length) return toast("Those aren't video files (MP4, MOV, MKV, WebM, AVI)");
+  const box = $("#rlup");
+  for (const f of vids) {
+    const row = document.createElement("div"); row.className = "row small"; row.style.marginTop = "8px";
+    row.innerHTML = `<span class="grow">Copying <b>${esc(f.name)}</b> (${size(f.size)})…</span><div class="rlbar" style="width:200px"><i style="width:0"></i></div>`;
+    box?.appendChild(row);
+    try {
+      RL.r = await new Promise((ok, bad) => {
+        const x = new XMLHttpRequest();
+        x.open("POST", `/v1/reels/${RL.r.id}/upload?name=${encodeURIComponent(f.name)}`);
+        x.upload.onprogress = e => { if (e.lengthComputable) row.querySelector("i").style.width = (100 * e.loaded / e.total) + "%"; };
+        x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText); } catch {} x.status < 300 ? ok(j) : bad(new Error(j.detail || x.statusText)); };
+        x.onerror = () => bad(new Error("upload failed"));
+        x.send(f);
+      });
+      row.remove();
+    } catch (e) { row.innerHTML = `<span class="err">${esc(f.name)}: ${esc(e.message)}</span>`; }
+  }
+  if (RL.step === 1 && $("#rlbody")) { const keep = $("#rlup")?.innerHTML || ""; rlRender(); if ($("#rlup")) $("#rlup").innerHTML = keep; }
+}
+async function rlAnalyse() { if (await rlCall("/analyse")) { RL.step = 2; rlRender(); rlPoll(); } }
+
+// Step 2: analysis
+function rlAnalysis(el) {
+  const r = RL.r, src = r.sources.filter(s => s.project_id);
+  const stage = k => (STAGES.find(([key]) => key === k) || [k, "Working"])[1];
+  const frac = src.length ? src.reduce((t, s) => t + (s.status === "done" || s.status === "failed" ? 1 : s.progress || 0), 0) / src.length : 0;
+  if (r.status === "picking") {
+    el.innerHTML = `<div class="card"><h2><span class="spin"></span> Picking the best moments across all ${src.length} videos…</h2>
+      <div class="muted">${r.ai ? `The AI editor (${esc(r.ai)}) is choosing and ordering the highlights: a strong hook first, no repeats of the same event, the best payoff last.` : "Ranking every moment on one scale, removing repeats of the same event and ordering them for pacing."}</div></div>`;
+    return;
+  }
+  if (r.status !== "analysing") { el.innerHTML = `<div class="card muted">Analysis finished. ${r.moments.length ? `<a href="#" onclick="RL.step=3;rlRender();return false">See the highlights →</a>` : ""}</div>`; return; }
+  el.innerHTML = `<div class="card">
+    <div class="row"><h2 class="grow" style="margin:0"><span class="spin"></span> Analysing ${src.length} video${src.length === 1 ? "" : "s"}</h2>
+      <span class="small muted">${Math.round(frac * 100)}%</span><button onclick="rlCancel()">Cancel</button></div>
+    <div class="overall" style="margin:12px 0 16px"><i style="width:${frac * 100}%"></i></div>
+    <table class="rlq">${src.map(s => `<tr><td><b>${esc(s.name)}</b>${s.error ? `<div class="small err">${esc(s.error)}</div>` : ""}</td>
+      <td class="small muted" style="width:220px">${s.status === "analysing" ? esc(stage(s.stage)) + "…" : s.status === "queued" ? "Waiting for a free slot" : s.status === "done" ? "Done" : "Failed"}</td>
+      <td style="width:220px"><div class="rlbar ${s.status === "done" ? "ok" : ""}"><i style="width:${(s.status === "done" ? 1 : s.progress || 0) * 100}%"></i></div></td></tr>`).join("")}</table>
+    <div class="small muted" style="margin-top:12px">For each video SPHURA listens for speech, measures action from the picture and sound, then the AI judges the candidate moments. You can leave this page; it keeps going.</div></div>`;
+}
+async function rlCancel() { if (await rlCall("/cancel")) { RL.step = rlAutoStep(); rlRender(); } }
+
+// Step 3: review
+function rlTrim(m) {
+  const cap = RL.r.clip_cap_s, len = m.end_s - m.start_s;
+  if (len <= cap) return [m.start_s, m.end_s];
+  if (m.finale) return [m.end_s - cap, m.end_s];
+  const a = Math.max(m.start_s, Math.min(m.peak_s - 0.6 * cap, m.peak_s + 1.5 - cap, m.end_s - cap));
+  return [+a.toFixed(2), +(a + cap).toFixed(2)];
+}
+function rlThumb(m) { return `/v1/reels/${RL.r.id}/moments/${encodeURIComponent(m.id)}/thumb.jpg`; }
+function rlLengthPicker() {
+  const t = RL.r.settings.target_s, custom = !RL_LENGTHS.includes(t);
+  return `<label class="small">Video length
+    <select onchange="if(this.value==='c'){$('#rlcust').hidden=false;$('#rlcust input').focus()}else rlSet({target_s:+this.value})">
+      ${RL_LENGTHS.map(x => `<option value="${x}" ${x === t ? "selected" : ""}>${x < 60 ? x + " seconds" : x === 60 ? "60 seconds" : x === 90 ? "90 seconds" : "3 minutes"}</option>`).join("")}
+      <option value="c" ${custom ? "selected" : ""}>Custom…</option></select>
+    <span id="rlcust" ${custom ? "" : "hidden"}><input type="number" min="10" max="600" style="width:70px" value="${t}" onchange="rlSet({target_s:+this.value})"> s</span></label>`;
+}
+function rlReview(el) {
+  const r = RL.r, inPick = Object.fromEntries(r.picks.map(p => [p.moment_id, p]));
+  const byId = Object.fromEntries(r.moments.map(m => [m.id, m]));
+  const pool = [...r.moments].sort((a, b) => b.score - a.score);
+  const n = r.picks.filter(p => p.include).length;
+  el.innerHTML = `
+    <div class="card"><div class="row">
+      ${rlLengthPicker()}
+      <div class="grow"></div>
+      <span class="small muted">${n} highlight${n === 1 ? "" : "s"} · <b style="color:var(--text)">${r.selected_s} s</b> of ${r.settings.target_s} s</span>
+      <button onclick="rlRegenerate(this)" title="Ask for a different selection and order">↻ Regenerate suggestions</button>
+      <button class="primary" ${n ? "" : "disabled"} onclick="RL.step=4;rlRender()">Next: arrange →</button></div>
+      <div class="small muted" style="margin-top:8px">${esc(r.story || "")}${r.ai ? "" : " The AI judge is off, so moments are ranked on audio and motion only."}</div></div>
+    ${pool.map(m => {
+      const p = inPick[m.id], on = !!(p && p.include), [a, b] = p ? [p.start_s, p.end_s] : rlTrim(m);
+      const dup = m.dup_of && byId[m.dup_of];
+      return `<div class="rlm ${on ? "" : "off"} ${dup && !on ? "dup" : ""}">
+        <div class="th" style="background-image:url('${rlThumb(m)}')" onclick="rlPreview('${m.source_id}',${a},${b})" title="Preview"><span>${hms(a)}–${hms(b)}</span></div>
+        <div><div class="row" style="gap:6px"><b>${esc(m.title)}</b>${m.category ? `<span class="badge b-maybe">${esc(m.category)}</span>` : ""}${m.tier ? `<span class="badge b-${m.tier}">${m.tier}</span>` : ""}</div>
+          <div class="small muted">${esc(m.source_name)} · ${hms(m.start_s)}–${hms(m.end_s)} in the video</div>
+          <div style="margin-top:4px">${esc(m.what)}</div>
+          ${m.why ? `<div class="small muted" style="margin-top:2px">Why: ${esc(m.why)}</div>` : ""}
+          ${m.hook ? `<div class="small" style="margin-top:2px">Hook idea: <i>“${esc(m.hook)}”</i></div>` : ""}
+          ${dup ? `<div class="small" style="color:var(--accent2);margin-top:4px">Same event as “${esc(dup.title)}” (${esc(dup.source_name)}), so it was left out.</div>` : ""}
+          ${on ? `<div class="row small" style="margin-top:8px">Use from <input type="number" step="0.5" min="0" value="${a}" onchange="rlEditPick('${m.id}','start_s',this.value)">
+             to <input type="number" step="0.5" min="0" value="${b}" onchange="rlEditPick('${m.id}','end_s',this.value)"> s <span class="muted">(${(b - a).toFixed(1)} s)</span></div>` : ""}</div>
+        <div style="text-align:right"><div class="score">${m.score}<small> /100</small></div>
+          <div class="small muted">engagement · ${Math.round(m.confidence * 100)}% sure</div>
+          <label class="row" style="justify-content:flex-end;margin-top:10px;gap:6px;cursor:pointer"><input type="checkbox" ${on ? "checked" : ""} onchange="rlToggle('${m.id}', this.checked)"> In the reel</label>
+          <button style="margin-top:8px" onclick="rlPreview('${m.source_id}',${a},${b})">▶ Preview</button></div></div>`;
+    }).join("")}`;
+}
+async function rlSet(settings) { if (await rlCall("", { settings }, "PATCH")) rlBody(); }
+async function rlRegenerate(btn) { btn.disabled = true; if (await rlCall("/regenerate")) { RL.step = 2; rlRender(); rlPoll(); } else btn.disabled = false; }
+function rlSavePicks(redraw = true) {
+  // Picks are saved as edited; a short pause batches quick changes
+  clearTimeout(RL.save);
+  return new Promise(ok => { RL.save = setTimeout(async () => { if (await rlCall("", { picks: RL.r.picks }, "PATCH") && redraw) rlBody(); ok(); }, 250); });
+}
+function rlToggle(id, on) {
+  const p = RL.r.picks.find(x => x.moment_id === id);
+  if (p) p.include = on;
+  else if (on) { const m = RL.r.moments.find(x => x.id === id), [a, b] = rlTrim(m); RL.r.picks.push({ moment_id: id, start_s: a, end_s: b, include: true }); }
+  rlSavePicks();
+}
+function rlEditPick(id, key, v) {
+  const p = RL.r.picks.find(x => x.moment_id === id); if (!p) return;
+  p[key] = Math.max(0, +v);
+  if (p.end_s - p.start_s < 1) { if (key === "start_s") p.start_s = p.end_s - 1; else p.end_s = p.start_s + 1; }
+  rlSavePicks();
+}
+function rlNudge(id, key, d) { const p = RL.r.picks.find(x => x.moment_id === id); if (p) rlEditPick(id, key, p[key] + d); }
+function rlMovePick(id, d) {
+  const inc = RL.r.picks.filter(p => p.include), i = inc.findIndex(p => p.moment_id === id), j = i + d;
+  if (i < 0 || j < 0 || j >= inc.length) return;
+  [inc[i], inc[j]] = [inc[j], inc[i]];
+  RL.r.picks = [...inc, ...RL.r.picks.filter(p => !p.include)];
+  rlSavePicks();
+}
+
+// Step 4: customize & arrange
+function rlArrange(el) {
+  const r = RL.r, s = r.settings, byId = Object.fromEntries(r.moments.map(m => [m.id, m]));
+  const seq = r.picks.filter(p => p.include && byId[p.moment_id]);
+  const presetInfo = { shorts: "9:16 vertical", reels: "9:16 vertical", tiktok: "9:16 vertical", landscape: "16:9 compilation", square: "1:1" };
+  const check = (k, label, hint) => `<label title="${esc(hint)}"><input type="checkbox" ${s[k] ? "checked" : ""} onchange="rlSet({${k}:this.checked})"> ${label}</label>`;
+  el.innerHTML = `<div class="rlgrid2">
+    <div>
+      <div class="card"><div class="row" style="margin-bottom:10px"><h2 class="grow" style="margin:0">Order (${seq.length})</h2>
+        <span class="small muted">≈ ${r.selected_s} s before cuts land on the beat</span>
+        <button onclick="rlPlaySeq(0)">▶ Preview the whole sequence</button></div>
+        ${seq.length ? seq.map((p, i) => { const m = byId[p.moment_id]; return `<div class="rlseq" id="seq-${i}">
+          <div class="n">${i + 1}</div>
+          <div class="th" style="background-image:url('${rlThumb(m)}')" onclick="rlPlaySeq(${i})" title="Play from here"></div>
+          <div><b>${esc(m.title)}</b> <span class="small muted">· ${esc(m.source_name)} · score ${m.score}</span>
+            <div class="row small" style="margin-top:6px;gap:4px">From <button onclick="rlNudge('${m.id}','start_s',-1)">−1s</button><input type="number" step="0.5" value="${p.start_s}" onchange="rlEditPick('${m.id}','start_s',this.value)"><button onclick="rlNudge('${m.id}','start_s',1)">+1s</button>
+              to <button onclick="rlNudge('${m.id}','end_s',-1)">−1s</button><input type="number" step="0.5" value="${p.end_s}" onchange="rlEditPick('${m.id}','end_s',this.value)"><button onclick="rlNudge('${m.id}','end_s',1)">+1s</button>
+              <span class="muted">${(p.end_s - p.start_s).toFixed(1)} s</span></div></div>
+          <div class="row" style="gap:4px"><button title="Earlier" ${i ? "" : "disabled"} onclick="rlMovePick('${m.id}',-1)">↑</button><button title="Later" ${i < seq.length - 1 ? "" : "disabled"} onclick="rlMovePick('${m.id}',1)">↓</button>
+            <button title="Take it out of the reel" onclick="rlToggle('${m.id}', false)">✕</button></div></div>`; }).join("")
+          : `<div class="muted">No highlights selected. <a href="#" onclick="RL.step=3;rlRender();return false">Pick some</a>.</div>`}
+        <div class="small muted" style="margin-top:8px">Tip: the first clip is your hook and the last one is the payoff. Drag-free: use ↑ ↓.</div></div>
+      <div class="card rlplayer" id="rlplayer" hidden><div class="row" style="margin-bottom:8px"><b class="grow" id="rlplaylab"></b><button onclick="rlStopSeq()">Stop</button></div>
+        <video id="rlplayv" playsinline controls></video>
+        <div class="small muted" style="margin-top:6px">Quick preview straight from your videos: effects, music and text are added when you generate.</div></div>
+    </div>
+    <div>
+      <div class="card rlopt"><h2>Output</h2>
+        <div class="rlpresets">${Object.entries(r.presets).map(([k, l]) => `<div class="${k === s.preset ? "on" : ""}" onclick="rlSet({preset:'${k}'})"><b>${esc(l)}</b>${presetInfo[k]}</div>`).join("")}</div>
+        ${rlLengthPicker()}
+        <label>Transitions <select onchange="rlSet({transitions:this.value})">
+          ${[["smart", "Smart: cuts within a video, short dissolve between videos"], ["cuts", "Clean cuts only"], ["fades", "Short dissolve everywhere"]].map(([k, l]) => `<option value="${k}" ${k === s.transitions ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+        ${check("music", "Background music (cuts land on the beat)", "AI music when it's installed, otherwise SPHURA's composer. It backs off when the game is loud.")}
+        ${check("captions", "Captions for spoken lines", "From the speech in your videos")}
+        ${check("hook", "Hook text at the start", "A short line on screen during the first seconds")}
+        ${check("effects", "Light effects (gentle zooms, slow-mo on the hit)", "Much lighter than single Shorts")}
+        <label>Game name <input type="text" value="${esc(s.game)}" placeholder="e.g. God of War Ragnarök" onchange="rlSet({game:this.value})"></label>
+        <label>Frame rate <select onchange="rlSet({fps:+this.value})">${[30, 60].map(f => `<option ${f === s.fps ? "selected" : ""}>${f}</option>`).join("")}</select></label>
+      </div>
+      <div class="card rlopt" id="rlbrand"><div class="row"><h2 class="grow" style="margin:0">Branding</h2>${check("branding", "Use on this reel", "")}</div>
+        <div class="small muted">Shared by all your reels. Leave empty for none.</div><div id="rlbrandf" class="small muted">Loading…</div></div>
+      <button class="primary" style="width:100%;padding:12px" ${seq.length ? "" : "disabled"} onclick="rlGenerate(this)">Generate video ▶</button>
+    </div></div>`;
+  rlBrandForm();
+}
+async function rlBrandForm() {
+  const b = await api("/v1/reels/branding").catch(() => null), el = $("#rlbrandf"); if (!el || !b) return;
+  const file = (k, label) => `<label>${label}<div class="row" style="gap:6px"><input type="text" class="grow" value="${esc(b[k])}" placeholder="none" onchange="rlBrand({${k}:this.value})">
+    <button onclick="rlBrandPick('${k}')">Browse…</button>${b[k] ? `<button onclick="rlBrand({${k}:''})">Clear</button>` : ""}</div></label>`;
+  el.className = "";
+  el.innerHTML = `<label>Watermark text <input type="text" value="${esc(b.watermark_text)}" placeholder="e.g. @yourchannel" onchange="rlBrand({watermark_text:this.value})"></label>
+    ${file("watermark_logo", "Logo (PNG, top right)")}${file("intro", "Intro clip")}${file("outro", "Outro clip")}`;
+}
+async function rlBrand(v) { try { await api("/v1/reels/branding", { method: "PUT", body: v }); toast("Branding saved"); } catch (e) { toast(e.message); } rlBrandForm(); }
+async function rlBrandPick(k) {
+  try { const r = await api(`/v1/reels/branding/choose?kind=${k === "watermark_logo" ? "logo" : "video"}`, { method: "POST" }); if (r.path) rlBrand({ [k]: r.path }); }
+  catch (e) { toast(e.message); }
+}
+async function rlGenerate(btn) { btn.disabled = true; await rlSavePicks(false); if (await rlCall("/generate")) { RL.step = 5; rlRender(); rlPoll(); } else btn.disabled = false; }
+
+// Previews: one moment, or the whole sequence straight from the source videos
+function rlPreview(sid, a, b) {
+  const box = document.createElement("div"); box.className = "rlmodal";
+  box.innerHTML = `<div class="box"><div class="row" style="margin-bottom:8px"><b class="grow">Preview ${a != null ? `${hms(a)}–${hms(b)}` : ""}</b><button>Close</button></div><video playsinline controls autoplay></video></div>`;
+  const v = box.querySelector("video"), close = () => { v.pause(); box.remove(); };
+  box.querySelector("button").onclick = close; box.onclick = e => { if (e.target === box) close(); };
+  v.src = `/v1/reels/${RL.r.id}/sources/${sid}/video`;
+  if (a != null) { v.onloadedmetadata = () => { v.currentTime = a; }; v.ontimeupdate = () => { if (v.currentTime >= b) v.pause(); }; }
+  document.body.appendChild(box);
+}
+function rlPlaySeq(from) {
+  const byId = Object.fromEntries(RL.r.moments.map(m => [m.id, m]));
+  const seq = RL.r.picks.filter(p => p.include && byId[p.moment_id]);
+  const v = $("#rlplayv"); if (!v || !seq.length) return;
+  $("#rlplayer").hidden = false; $("#rlplayer").scrollIntoView({ block: "nearest" });
+  RL.seq = { seq, i: from };
+  const play = i => {
+    if (!RL.seq || i >= seq.length) { rlStopSeq(); return; }
+    RL.seq.i = i; const p = seq[i], m = byId[p.moment_id], src = `/v1/reels/${RL.r.id}/sources/${m.source_id}/video`;
+    $("#rlplaylab").textContent = `${i + 1} / ${seq.length} · ${m.title}`;
+    document.querySelectorAll(".rlseq").forEach((el, k) => el.style.borderColor = k === i ? "var(--accent)" : "");
+    const go = () => { v.currentTime = p.start_s; v.play(); };
+    if (v.dataset.src !== src) { v.dataset.src = src; v.src = src; v.onloadedmetadata = go; } else go();
+    v.ontimeupdate = () => { if (RL.seq && v.currentTime >= p.end_s) play(i + 1); };
+  };
+  play(from);
+}
+function rlStopSeq() { const v = $("#rlplayv"); if (v) { v.pause(); v.ontimeupdate = null; } RL.seq = null; document.querySelectorAll(".rlseq").forEach(el => el.style.borderColor = ""); }
+
+// Step 5: generating
+function rlGenerating(el) {
+  const r = RL.r, g = r.render || {};
+  if (r.status !== "rendering") { el.innerHTML = `<div class="card muted">Not generating right now. ${r.output ? `<a href="#" onclick="RL.step=6;rlRender();return false">See the finished video →</a>` : ""}</div>`; return; }
+  const secs = g.started_at ? Math.round((Date.now() - new Date(g.started_at)) / 1000) : 0;
+  el.innerHTML = `<div class="card"><div class="row"><h2 class="grow" style="margin:0"><span class="spin"></span> ${esc(g.step || "Starting")}…</h2>
+      <span class="small muted">${Math.round((g.progress || 0) * 100)}% · ${hms(secs)}</span><button onclick="rlCancel()">Cancel</button></div>
+    <div class="overall" style="margin:12px 0"><i style="width:${(g.progress || 0) * 100}%"></i></div>
+    <div class="small muted">Each highlight is rendered in the chosen format with light effects and captions, the cuts are moved onto the music's beat, then everything is joined, mixed and loudness-matched in one pass. You can leave this page; it keeps going.</div></div>`;
+}
+
+// Step 6: preview & export
+function rlExport(el) {
+  const r = RL.r, o = r.output;
+  if (!o) { el.innerHTML = `<div class="card muted">No video yet.</div>`; return; }
+  const field = (label, text, rows = 2) => `<label class="small muted" style="display:block;margin-top:10px">${label}
+    <div class="row" style="gap:6px;align-items:flex-start"><textarea rows="${rows}" readonly class="grow">${esc(text)}</textarea><button onclick="copy(${esc(JSON.stringify(text))}, '${label}')">Copy</button></div></label>`;
+  el.innerHTML = `<div class="rlout">
+    <div class="card"><video src="/v1/reels/${r.id}/output.mp4?v=${Date.now()}" controls playsinline style="width:100%;max-height:70vh;background:#000;border-radius:8px"></video>
+      <div class="small muted" style="margin-top:8px">${hms(o.duration)} · ${esc(r.presets[o.preset] || o.preset)}${o.music ? " · ♪ " + esc(o.music) : ""}</div>
+      <div class="row" style="margin-top:10px"><button class="primary" onclick="api('/v1/reels/${r.id}/reveal',{method:'POST'}).catch(e=>toast(e.message))">Show in folder</button>
+        <button onclick="RL.step=4;rlRender()">Edit &amp; generate again</button></div>
+      <div class="small muted" style="margin-top:8px;word-break:break-all">${esc(o.path)}</div></div>
+    <div class="card"><h2>Ready to post</h2>
+      ${field("Title", o.title, 1)}
+      ${field("Description", o.description + (o.chapters?.length > 1 ? "\n\n" + o.chapters.map(c => `${Math.floor(c.t / 60)}:${String(Math.floor(c.t % 60)).padStart(2, "0")} ${c.title}`).join("\n") : "") + "\n\n" + o.hashtags, 7)}
+      ${field("Hashtags", o.hashtags, 1)}
+      ${field("On-screen hook", o.hook, 1)}
+      <div class="small muted" style="margin-top:12px">Thumbnail idea</div>
+      <div class="row" style="align-items:flex-start;margin-top:4px">${o.thumbnail ? `<img src="/v1/reels/${r.id}/thumbnail.jpg?v=${Date.now()}" style="width:200px;border-radius:8px">` : ""}
+        <div class="small">${o.thumbnail_text ? `<b>“${esc(o.thumbnail_text)}”</b><br>` : ""}Frame from “${esc(o.thumbnail_moment)}”. Saved next to the video.</div></div>
+      <div class="small muted" style="margin-top:10px">A .txt with the title, description, chapters and hashtags is saved next to the video too.</div></div></div>`;
+}
+
 // ---------- Timeline editor ----------
+function edOpen() { return !!(ed && $("#edtl")); }
+function edLeaveOk() {
+  // Leaving the editor with unsaved edits asks first; a confirmed leave drops them
+  if (!edOpen() || !ed.dirty) return true;
+  if (!confirm("You have unsaved changes in this Short.\n\nLeave without saving them? (Press Cancel, then Update preview or Save & export to keep them.)")) return false;
+  ed.dirty = false; return true;
+}
+window.addEventListener("beforeunload", e => { if (edOpen() && ed.dirty) { e.preventDefault(); e.returnValue = ""; } });
 const ED_STYLES = { plain: "Subtitle", hook: "Pop-in hook", caps: "Caps opener", bar: "Meme caption bar" };
 const FX_NAMES = { cold_open: "Cold open (climax first)", zoom: "Zoom punches", shake: "Camera shake", slowmo: "Slow motion",
   flash: "Flashes & glitches", rgb: "RGB split", trail: "Motion trail", vignette: "Vignette", letterbox: "Letterbox bars", sfx: "Sound effects" };
 let ed = null;
 
 async function openEditor(id) {
+  rlStop();
   stopPolling(); leaveDownloads();
   history.replaceState(null, "", "#edit/" + id);
   $("#main").innerHTML = `<div class="card"><span class="spin"></span> Opening the editor…</div>`;
   try {
     const st = await api(`/v1/clips/${id}/editor`);
-    ed = { st, sel: null, dirty: false, pps: 40, busy: false };
+    ed = { st, sel: null, dirty: false, pps: 40, busy: false, audio: null, audioKey: null };
     renderEditor();
     if (!st.has_draft) edRender("draft", true);
   } catch (e) { $("#main").innerHTML = `<div class="card err">${esc(e.message)}</div>`; }
@@ -968,43 +1442,142 @@ function renderEditor() {
       <button class="primary" onclick="edRender('final')">Save & export</button></div>
     <div class="edgrid">
       <div class="card edstage">
-        <div class="row small" style="margin-bottom:8px"><label><input type="radio" name="edsrc" value="short" checked onchange="edSource()"> Short preview</label>
-          <label><input type="radio" name="edsrc" value="orig" onchange="edSource()"> Original footage (for cutting)</label></div>
+        <div class="edmodes"><button id="edm-short" class="on" onclick="edMode(false)" title="Watch and edit the Short">▶ Short</button>
+          <button id="edm-rec" onclick="edMode(true)" title="See the whole recording and add more footage to the Short">🎞 Full recording · add footage</button></div>
         <div id="edframe" class="edframe" style="aspect-ratio:${s.out_w}/${s.out_h}">
-          <video id="edvid" playsinline preload="auto"></video><div id="edtext" class="edtext"></div></div>
-        <div class="row" style="margin-top:8px"><button onclick="edPlay()" id="edplaybtn">▶ Play</button>
-          <span class="small muted" id="edtime">0.0 s</span><div class="grow"></div>
-          <button onclick="edAddText()">+ Text at playhead</button><button onclick="edSplit()">✂ Split at playhead</button></div>
+          <video id="edvid" playsinline preload="auto"></video><div id="edtext" class="edtext"></div><div id="edlive" class="edlive" hidden>LIVE · straight from the recording</div>
+          <video id="edtrimv" class="edtrimv" muted playsinline preload="auto" hidden></video><div id="edtrimlab" class="edtrimlab" hidden></div></div>
+        <div class="edbar" id="edbar"></div>
       </div>
       <div class="card" id="edinspector"></div>
     </div>
     <div class="card"><div class="row small muted" style="margin-bottom:6px"><b style="color:var(--text)">Timeline</b><div class="grow"></div>
-      Zoom <input type="range" min="10" max="160" value="${ed.pps}" style="width:140px" oninput="ed.pps=+this.value;edDraw()"></div>
+      <span id="edtlhint"></span> Zoom <input type="range" id="edzoom" min="10" max="160" value="${ed.pps}" style="width:140px" oninput="edZoom(+this.value)"></div>
       <div id="edtl" class="edtl"></div>
-      <div class="small muted" style="margin-top:6px">Drag the edges of a part to trim it, drag text blocks to move them, drag their right edge to change how long they show. Space = play/pause, Delete = remove selected, S = split.</div></div>`;
+      <div class="small muted" style="margin-top:6px">Click or drag on the ruler to move the playhead. Drag a part's edge outward to add more footage, inward to cut. Space plays and pauses.</div></div>`;
   edSource(); edDraw(); edInspector();
 }
 
+function edMode(orig) {
+  if (ed.orig === orig) return;
+  ed.orig = orig; ed.sel = null; edSetMarks(null, null); edSource(); edInspector();
+}
 function edSource() {
-  const v = $("#edvid"), orig = document.querySelector('input[name=edsrc]:checked').value === "orig";
-  ed.orig = orig;
+  const v = $("#edvid"), orig = !!ed.orig;
+  ed.live = false; $("#edframe")?.classList.remove("live"); if ($("#edlive")) $("#edlive").hidden = true;
+  $("#edm-short")?.classList.toggle("on", !orig); $("#edm-rec")?.classList.toggle("on", orig);
   v.src = orig ? `/v1/clips/${ed.st.id}/source` : (ed.st.has_draft ? `/v1/clips/${ed.st.id}/draft.mp4?v=${Date.now()}` : `/v1/clips/${ed.st.id}/video`);
   $("#edframe").style.aspectRatio = orig ? "16/9" : `${ed.st.out_w}/${ed.st.out_h}`;
-  v.ontimeupdate = edTick; v.onplay = v.onpause = () => $("#edplaybtn").textContent = v.paused ? "▶ Play" : "❚❚ Pause";
+  v.ontimeupdate = v.onseeked = edTick; v.onplay = v.onpause = () => { const b = $("#edplaybtn"); if (b) b.textContent = v.paused ? "▶ Play" : "❚❚ Pause"; };
   if (orig) { const seg = ed.st.segments[ed.sel?.kind === "seg" ? ed.sel.i : 0]; v.onloadedmetadata = () => v.currentTime = seg[0]; }
   else v.onloadedmetadata = null;
   if (!orig && !ed.st.has_draft) $("#edstatus").textContent = "Showing the exported Short (text burned in) until the preview is ready";
+  if (!orig && ed.dirtyCuts) { v.removeAttribute("src"); edLiveSync(); }
+  if ($("#edtl")) edSourceView();
 }
-function edPlay() { const v = $("#edvid"); v.paused ? v.play() : v.pause(); }
+function edBtn(label, on, why, fn, cls = "") {
+  return `<button class="${cls}" ${on ? "" : "disabled"} title="${esc(on ? "" : why)}" onclick="${fn}">${label}</button>`;
+}
+function edSplitOk() {
+  const t = edNow(), so = edSegOut();
+  return !ed.orig && so.some(([a, b]) => t > a + 0.3 && t < b - 0.3);
+}
+function edToolbar() {
+  // One row of plain-labelled actions; greyed-out buttons say why on hover
+  const bar = $("#edbar"); if (!bar) return;
+  const v = $("#edvid"), play = `<button onclick="edPlay()" id="edplaybtn">${v && !v.paused ? "❚❚ Pause" : "▶ Play"}</button><span class="small muted" id="edtime"></span><div class="grow"></div>`;
+  if (!ed.orig) {
+    const sel = ed.sel, canDel = sel?.kind === "txt" || (sel?.kind === "seg" && ed.st.segments.length > 1);
+    const delLabel = sel?.kind === "txt" ? "🗑 Delete text" : sel?.kind === "seg" ? `🗑 Delete part ${sel.i + 1}` : "🗑 Delete";
+    bar.innerHTML = play
+      + `<span id="edsplitwrap">${edBtn("✂ Split here<kbd>S</kbd>", edSplitOk(), "Move the playhead inside a part (not at its edge) to split it there", "edSplit()")}</span>`
+      + edBtn(`${delLabel}<kbd>Del</kbd>`, canDel, sel?.kind === "seg" ? "A Short needs at least one part" : "Click a part or a text block in the timeline first", "edDelete()")
+      + edBtn("＋ Text here", true, "", "edAddText()")
+      + `<i class="sep"></i>` + edBtn("＋ Add footage…", true, "", "edMode(true)", "primary");
+  } else {
+    const p = ed.pick, overlap = p && ed.st.segments.some(([a, b]) => p[0] < b && p[1] > a);
+    const note = p ? `Marked ${hms(p[0])}–${hms(p[1])} (${(p[1] - p[0]).toFixed(1)} s)`
+      : ed.mA != null ? `Start marked at ${hms(ed.mA)}. Now mark the end.` : ed.mB != null ? `End marked at ${hms(ed.mB)}. Now mark the start.` : "Mark a start and an end, drag across the recording, or click a yellow moment";
+    bar.innerHTML = play
+      + edBtn("⟦ Mark start<kbd>I</kbd>", true, "", "edMark(0)") + edBtn("Mark end ⟧<kbd>O</kbd>", true, "", "edMark(1)")
+      + edBtn("＋ Add to Short", !!p, "Mark a start and an end first", "edAddPick()", "primary")
+      + edBtn("− Remove from Short", !!overlap, p ? "The marked stretch isn't in your Short" : "Mark the stretch to remove first", "edRemovePick()")
+      + `<i class="sep"></i>` + edBtn("← Back to Short", true, "", "edMode(false)")
+      + `<div style="flex-basis:100%"></div><span class="note">${esc(note)}</span>`;
+  }
+  edTick();
+}
+function edFit() { return Math.max(0.02, (($("#edtl")?.clientWidth || 1000) - 40) / ed.st.source_duration); }
+function edZoom(v) {
+  // Recording view: a log scale from "whole recording" to 60 px per second
+  if (ed.orig) { const fit = edFit(); ed.spps = fit * Math.pow(Math.max(1.01, 60 / fit), v / 100); } else ed.pps = v;
+  edDraw();
+}
+async function edSourceView() {
+  const z = $("#edzoom"), box = $("#edtl"), segs = ed.st.segments;
+  $("#edtlhint").innerHTML = ed.orig ? `<b style="color:var(--text)">Whole recording</b>: highlighted parts are in your Short. Drag on the recording or click a moment to add it.&nbsp;&nbsp;` : "";
+  if (!ed.orig) { z.min = 10; z.max = 160; z.value = ed.pps; edDraw(); return; }
+  const fit = edFit(), lo = Math.min(...segs.map(x => x[0])), hi = Math.max(...segs.map(x => x[1]));
+  if (!ed.spps) ed.spps = Math.min(60, Math.max(fit, (box.clientWidth - 40) / (hi - lo + 240))); // the Short ±2 min
+  z.min = 0; z.max = 100; z.value = Math.round(100 * Math.log(ed.spps / fit) / Math.log(Math.max(1.01, 60 / fit)));
+  edDraw(); box.scrollLeft = Math.max(0, (lo - 60) * ed.spps);
+  if (!ed.moments && ed.st.project_id) {
+    try { ed.moments = await api(`/v1/projects/${ed.st.project_id}/highlights?limit=100`); } catch { ed.moments = []; }
+    if (ed.orig) edDraw();
+  }
+}
+function edPlay() {
+  const v = $("#edvid");
+  if (ed.live && v.paused) { const segs = ed.st.segments, n = segs.length - 1; if (v.currentTime >= segs[n][1] - 0.1) edGoto(0); else ed.liveSeg = Math.max(0, edLivePart(v.currentTime)); }
+  v.paused ? v.play() : v.pause();
+}
+function edLiveSync() {
+  // Changed cuts play straight from the recording, part after part, until the next preview render
+  const want = !ed.orig && !!ed.dirtyCuts, v = $("#edvid"); if (!v || want === !!ed.live) return;
+  const t = edNow(); ed.live = want;
+  $("#edframe").classList.toggle("live", want); $("#edlive").hidden = !want;
+  if (!want) return;
+  v.pause(); v.src = `/v1/clips/${ed.st.id}/source`;
+  v.onloadedmetadata = () => edGoto(t);
+  $("#edstatus").textContent = "Live preview: no effects or music yet. Press Update preview to see the finished Short.";
+}
+function edLivePart(src) {
+  const segs = ed.st.segments, i = segs.findIndex(([a, b], k) => k >= (ed.liveSeg || 0) && src >= a - 0.05 && src < b);
+  return i >= 0 ? i : segs.findIndex(([a, b]) => src >= a - 0.05 && src < b);
+}
+function edGoto(t) {
+  // Move to time t of the Short (seconds), whichever video is showing
+  const v = $("#edvid");
+  if (ed.live) {
+    const so = edSegOut(), segs = ed.st.segments;
+    let i = so.findIndex(([a, b]) => t >= a && t < b); if (i < 0) i = t < (so[0]?.[0] || 0) ? 0 : segs.length - 1;
+    ed.liveSeg = i; v.currentTime = Math.min(segs[i][1] - 0.02, segs[i][0] + Math.max(0, t - so[i][0]));
+  } else if (ed.orig) {
+    const so = edSegOut(), i = so.findIndex(([a, b]) => t >= a && t <= b); if (i >= 0) v.currentTime = ed.st.segments[i][0] + (t - so[i][0]);
+  } else v.currentTime = t;
+}
 function edNow() {
-  const v = $("#edvid"); if (!ed.orig) return v.currentTime || 0;
+  const v = $("#edvid");
+  if (ed.live) { const i = edLivePart(v.currentTime || 0), so = edSegOut(); return i < 0 ? (ed.liveT || 0) : (ed.liveT = so[i][0] + (v.currentTime - ed.st.segments[i][0])); }
+  if (!ed.orig) return v.currentTime || 0;
   // Original footage: map the source time back onto the Short's timeline when inside a part
   const so = edSegOut(); const i = ed.st.segments.findIndex(([a, b]) => v.currentTime >= a && v.currentTime <= b);
   return i < 0 ? 0 : so[i][0] + (v.currentTime - ed.st.segments[i][0]);
 }
+function edSrcLabel(t) {
+  const i = ed.st.segments.findIndex(([a, b]) => t >= a && t <= b);
+  return `${hms(t)} in the recording${i >= 0 ? ` · part ${i + 1}` : ""}`;
+}
 function edTick() {
-  const t = edNow(); $("#edtime").textContent = `${t.toFixed(1)} s / ${edTotal().toFixed(1)} s`;
-  const ph = $("#edph"); if (ph) ph.style.left = (t * ed.pps) + "px";
+  const v = $("#edvid");
+  if (ed.live && !v.paused) { // jump over the gaps between parts
+    const segs = ed.st.segments, i = ed.liveSeg || 0;
+    if (v.currentTime >= segs[i][1] - 0.04) { if (i + 1 < segs.length) { ed.liveSeg = i + 1; v.currentTime = segs[i + 1][0]; } else v.pause(); }
+  }
+  const t = edNow(), src = v.currentTime || 0;
+  const tl = $("#edtime"); if (tl) tl.textContent = ed.orig ? edSrcLabel(src) : `${t.toFixed(1)} s / ${edTotal().toFixed(1)} s`;
+  const sp = $("#edsplitwrap button"); if (sp) sp.disabled = !edSplitOk();
+  const ph = $("#edph"); if (ph) ph.style.left = (ed.orig ? src * ed.spps : t * ed.pps) + "px";
   edDrawText(t);
   if (!$("#edvid").paused) requestAnimationFrame(edTick);
 }
@@ -1060,51 +1633,256 @@ function edDragY(ev, i) {
   window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
 }
 
+function edWave(env) {
+  // Mirrored loudness outline, stretched to the block it sits in
+  if (!env || env.length < 2) return "";
+  const n = env.length - 1, top = [], bot = [];
+  env.forEach((v, i) => { top.push(`${i},${(0.5 - v * 0.47).toFixed(3)}`); bot.unshift(`${i},${(0.5 + v * 0.47).toFixed(3)}`); });
+  return `<svg class="edwave" viewBox="0 0 ${n} 1" preserveAspectRatio="none"><polygon points="${top.concat(bot).join(" ")}"/></svg>`;
+}
+function edFilm(a, b, w) {
+  // Frames of the recording laid on a fixed time grid, so trimming only adds or drops tiles at the ends
+  if (w < 8 || b <= a) return "";
+  const pxs = w / (b - a), tile = 64, step = Math.max(0.5, Math.round(tile / pxs * 2) / 2);
+  let html = "";
+  for (let t = Math.floor(a / step) * step; t < b; t += step) {
+    const at = Math.min(ed.st.source_duration - 0.5, t + step / 2);
+    html += `<img loading="lazy" src="/v1/clips/${ed.st.id}/frame.jpg?t=${at.toFixed(1)}" style="left:${(t - a) * pxs}px;width:${step * pxs + 1}px" alt="">`;
+  }
+  return `<div class="edfilm">${html}</div>`;
+}
+function edLoadAudio() {
+  // Saved cuts come back mapped through slow-mo; unsaved ones 1:1, like the timeline draws them
+  const key = ed.dirtyCuts ? JSON.stringify(ed.st.segments) : "saved";
+  if (key === ed.audioKey) return;
+  ed.audioKey = key; clearTimeout(ed.audioTimer);
+  ed.audioTimer = setTimeout(async () => {
+    try {
+      const a = await api(`/v1/clips/${ed.st.id}/editor/audio`, { method: "POST", body: { segments: ed.dirtyCuts ? ed.st.segments : null } });
+      if (ed && ed.audioKey === key) { ed.audio = a; edDraw(); edInspector(); }
+    } catch (e) { /* waveforms are optional */ }
+  }, ed.audio ? 350 : 0);
+}
+
+function edDrawSource() {
+  const s = ed.st, src = s.source_duration, pps = ed.spps, W = Math.ceil(src * pps) + 40;
+  const step = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600].find(x => x * pps >= 70) || 3600;
+  let ruler = "";
+  for (let t = 0; t <= src; t += step) ruler += `<span style="left:${t * pps}px">${hms(t)}</span>`;
+  const parts = s.segments.map(([a, b], i) => `<div class="edblk seg src ${ed.sel?.kind === "seg" && ed.sel.i === i ? "on" : ""}" data-i="${i}" style="left:${a * pps}px;width:${Math.max(4, (b - a) * pps)}px" title="Part ${i + 1} of your Short: ${hms(a)} to ${hms(b)}">
+      ${edFilm(a, b, Math.max(4, (b - a) * pps))}<i class="h l" title="Drag left to add earlier footage"></i><span>${i + 1}</span><i class="h r" title="Drag right to add later footage"></i></div>`).join("");
+  const marks = (ed.mA != null && !ed.pick ? `<i class="edmark" data-l="start" style="left:${ed.mA * pps}px"></i>` : "")
+    + (ed.mB != null && !ed.pick ? `<i class="edmark" data-l="end" style="left:${ed.mB * pps}px"></i>` : "");
+  const pick = ed.pick ? `<div class="edblk pick" id="edpick" style="left:${ed.pick[0] * pps}px;width:${Math.max(2, (ed.pick[1] - ed.pick[0]) * pps)}px"></div>` : `<div class="edblk pick" id="edpick" hidden></div>`;
+  const lanes = [];
+  const moms = (ed.moments || []).map((m, k) => {
+    let lane = lanes.findIndex(end => end <= m.start_s); if (lane < 0) { lane = lanes.length; lanes.push(0); } lanes[lane] = m.end_s + 2 / pps;
+    const inShort = s.segments.some(([a, b]) => m.start_s < b && m.end_s > a);
+    const title = m.ai?.title || `Moment at ${hms(m.peak_s)}`;
+    return `<div class="edblk mom ${inShort ? "in" : ""} ${ed.sel?.kind === "mom" && ed.sel.i === k ? "on" : ""}" data-k="${k}" style="left:${m.start_s * pps}px;width:${Math.max(4, (m.end_s - m.start_s) * pps)}px;top:${4 + lane * 26}px"
+      title="#${m.rank} ${esc(title)}${m.tier ? " (" + m.tier + ")" : ""}${inShort ? " · already in this Short" : ""}"><span>#${m.rank} ${esc(title)}</span></div>`;
+  }).join("");
+  $("#edtl").innerHTML = `<div class="edinner" style="width:${W}px">
+    <div class="edruler" onpointerdown="edScrub(event)">${ruler}</div>
+    <div class="edtrack" id="edrec" style="height:48px"><b class="edlab">Full recording: orange = already in your Short</b>${parts}${pick}${marks}</div>
+    <div class="edtrack" style="height:${Math.max(1, lanes.length) * 26 + 8}px"><b class="edlab">Moments SPHURA found (click one to mark it)</b>${ed.moments ? moms || `<span class="ednone">No other moments</span>` : `<span class="ednone">Loading…</span>`}</div>
+    <div id="edph" class="edph" style="left:${($("#edvid")?.currentTime || 0) * pps}px"><i class="edphh" title="Drag to move through the recording" onpointerdown="edScrub(event)"></i></div></div>`;
+  $("#edtl").querySelectorAll(".edblk.seg").forEach(el => el.onpointerdown = ev => edDragSeg(ev, +el.dataset.i));
+  $("#edtl").querySelectorAll(".edblk.mom").forEach(el => el.onpointerdown = ev => { ev.preventDefault(); edPickMoment(+el.dataset.k); });
+  $("#edrec").onpointerdown = ev => { if (ev.target.id === "edrec" || ev.target.classList.contains("edlab")) edSelectRange(ev); };
+  $("#edtl").querySelectorAll(".edtrack:not(#edrec)").forEach(el => el.onpointerdown = ev => { if (ev.target === el || ev.target.classList.contains("edlab") || ev.target.classList.contains("ednone")) edScrub(ev); });
+}
+function edSrcAt(clientX) {
+  const r = $("#edtl .edinner").getBoundingClientRect();
+  return Math.min(ed.st.source_duration, Math.max(0, (clientX - r.left) / ed.spps));
+}
+function edSelectRange(ev) {
+  // Drag across the recording to mark a stretch to add; a plain click just moves there
+  if (ev.button !== 0) return;
+  ev.preventDefault();
+  const v = $("#edvid"), t0 = edSrcAt(ev.clientX), box = $("#edtl");
+  v.pause(); document.body.classList.add("edscrub"); edSeekTo(ev.clientX);
+  let t1 = t0;
+  const move = e => {
+    const b = box.getBoundingClientRect();
+    if (e.clientX > b.right - 30) box.scrollLeft += 12; else if (e.clientX < b.left + 30) box.scrollLeft -= 12;
+    t1 = edSrcAt(e.clientX); edSeekTo(e.clientX);
+    const el = $("#edpick"), a = Math.min(t0, t1), w = Math.abs(t1 - t0);
+    el.hidden = false; el.style.left = a * ed.spps + "px"; el.style.width = Math.max(2, w * ed.spps) + "px";
+  };
+  const up = () => {
+    window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
+    document.body.classList.remove("edscrub");
+    if (Math.abs(t1 - t0) >= 0.3) { edSetMarks(Math.min(t0, t1), Math.max(t0, t1)); ed.sel = { kind: "pick", i: 0 }; }
+    else if (ed.sel?.kind === "pick") { edSetMarks(null, null); ed.sel = null; }
+    edDraw(); edInspector();
+  };
+  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+}
+function edPickMoment(k) {
+  const m = ed.moments[k]; edSetMarks(m.start_s, m.end_s);
+  $("#edvid").currentTime = m.start_s; edSelect("mom", k); setTimeout(edTick, 80);
+}
+function edSetMarks(a, b) {
+  ed.mA = a; ed.mB = b;
+  ed.pick = a != null && b != null && b - a >= 0.3 ? [a, b] : null;
+}
+function edMark(j) {
+  // Mark start (I) / Mark end (O) at the playhead; a mark on the wrong side of the other clears it
+  if (!ed.orig) return;
+  const t = $("#edvid").currentTime || 0;
+  let a = ed.mA ?? null, b = ed.mB ?? null;
+  if (j === 0) { a = t; if (b != null && b - a < 0.3) b = null; } else { b = t; if (a != null && b - a < 0.3) a = null; }
+  edSetMarks(a, b);
+  if (ed.pick) edSelect("pick", 0); else { ed.sel = null; edDraw(); edInspector(); }
+}
+function edRemovePick() {
+  // Cut the marked stretch out of every part it overlaps
+  const [a, b] = ed.pick, out = [];
+  for (const [x, y] of ed.st.segments) {
+    if (b <= x || a >= y) { out.push([x, y]); continue; }
+    if (a - x >= 0.3) out.push([x, a]);
+    if (y - b >= 0.3) out.push([b, y]);
+  }
+  if (!out.length) return toast("That would remove everything. A Short needs at least one part.");
+  ed.st.segments = out; ed.dirty = ed.dirtyCuts = true; edSetMarks(null, null); ed.sel = null;
+  edDraw(); edInspector(); toast("Removed from your Short. Press Update preview to see it.");
+}
+function edAddPick() {
+  // Parts play in recording order; overlapping or touching parts merge into one
+  const [a, b] = ed.pick, segs = [...ed.st.segments.map(x => [...x]), [a, b]].sort((x, y) => x[0] - y[0]);
+  const merged = [];
+  for (const sg of segs) { const last = merged[merged.length - 1]; if (last && sg[0] <= last[1] + 0.05) last[1] = Math.max(last[1], sg[1]); else merged.push(sg); }
+  const total = merged.reduce((t, [x, y]) => t + y - x, 0);
+  if (total > 180) return toast(`That would make the Short ${Math.round(total)} s long; the most is 180 s. Trim it first.`);
+  ed.st.segments = merged; ed.dirty = ed.dirtyCuts = true; edSetMarks(null, null);
+  const i = merged.findIndex(([x, y]) => a >= x - 0.01 && a <= y);
+  edSelect("seg", i < 0 ? 0 : i);
+  toast("Added to your Short. Press Update preview to see it.");
+}
+
 function edDraw() {
+  if (ed.orig) return edDrawSource();
+  edLiveSync();
   const s = ed.st, total = Math.max(edTotal(), 1), pps = ed.pps, W = Math.ceil(total * pps) + 40;
   const so = edSegOut();
   let ruler = "";
   const step = pps >= 60 ? 1 : pps >= 25 ? 2 : 5;
   for (let t = 0; t <= total; t += step) ruler += `<span style="left:${t * pps}px">${t}s</span>`;
-  const teaser = s.teaser_out > 0.05 ? `<div class="edblk teaser" style="left:0;width:${s.teaser_out * pps}px" title="Cold open (the climax first)">Cold open</div>` : "";
+  const teaser = s.teaser_out > 0.05 ? `<div class="edblk teaser" style="left:0;width:${s.teaser_out * pps}px;height:40px" title="Cold open (the climax first)">Cold open</div>` : "";
   const segs = so.map(([a, b], i) => `<div class="edblk seg ${ed.sel?.kind === "seg" && ed.sel.i === i ? "on" : ""}" data-i="${i}" style="left:${a * pps}px;width:${Math.max(6, (b - a) * pps)}px">
-      <i class="h l"></i><span>Part ${i + 1} · ${(s.segments[i][1] - s.segments[i][0]).toFixed(1)}s</span><i class="h r"></i></div>`).join("");
+      ${edFilm(s.segments[i][0], s.segments[i][1], Math.max(6, (b - a) * pps))}<i class="h l" title="Drag left to add earlier footage, right to cut the start"></i><span>Part ${i + 1} · ${(s.segments[i][1] - s.segments[i][0]).toFixed(1)}s</span><i class="h r" title="Drag right to add later footage, left to cut the end"></i></div>`).join("");
   const lanes = []; // stack overlapping text blocks in lanes
   const txt = s.overlays.map((o, i) => {
     let lane = lanes.findIndex(end => end <= o.start_s + 0.01); if (lane < 0) { lane = lanes.length; lanes.push(0); } lanes[lane] = o.end_s;
     return `<div class="edblk txt ${ed.sel?.kind === "txt" && ed.sel.i === i ? "on" : ""}" data-i="${i}" style="left:${o.start_s * pps}px;width:${Math.max(8, (Math.min(o.end_s, total) - o.start_s) * pps)}px;top:${lane * 26}px">
       <span>${esc(o.text)}</span><i class="h r"></i></div>`; }).join("");
+  edLoadAudio();
+  const au = ed.audio, waves = au && au.parts.length === so.length ? au.parts : [];
+  const tzA = s.teaser_out > 0.05 ? `<div class="edblk aud tz" style="left:0;width:${s.teaser_out * pps}px" title="Game audio of the cold open">${edWave(au && au.teaser)}<span>Cold open</span></div>` : "";
+  const aud = so.map(([a, b], i) => `<div class="edblk aud ${ed.sel?.kind === "seg" && ed.sel.i === i ? "on" : ""}" data-i="${i}" style="left:${a * pps}px;width:${Math.max(6, (b - a) * pps)}px" title="Game audio of part ${i + 1}: trimmed together with its video">
+      ${edWave(waves[i])}<i class="h l"></i><span>Part ${i + 1} audio</span><i class="h r"></i></div>`).join("");
+  const m = au && au.music;
+  let mus = "";
+  if (m) {
+    const w = Math.max(6, (total - m.in_s) * pps);
+    const beats = m.beats.filter(t => t >= m.in_s && t <= total).map(t => `<i class="edbeat" style="left:${(t - m.in_s) * pps}px"></i>`).join("");
+    const dip = m.dip ? `<i class="eddip" style="left:${(m.dip[0] - m.in_s) * pps}px;width:${Math.max(2, (m.dip[1] - m.dip[0]) * pps)}px" title="Music drops out for the key hit"></i>` : "";
+    mus = `<div class="edblk mus ${ed.sel?.kind === "music" ? "on" : ""}" style="left:${m.in_s * pps}px;width:${w}px" title="${esc(m.name)}">
+      ${edWave(m.env)}${dip}${beats}<span>♪ ${esc(m.name)}${m.bpm ? ` · ${m.bpm} BPM` : ""}</span></div>`;
+  } else mus = `<span class="ednone">${au ? "No music on this Short" : "Loading…"}</span>`;
   $("#edtl").innerHTML = `<div class="edinner" style="width:${W}px">
-    <div class="edruler" onpointerdown="edSeek(event)">${ruler}</div>
-    <div class="edtrack" style="height:34px"><b class="edlab">Video</b>${teaser}${segs}</div>
+    <div class="edruler" onpointerdown="edScrub(event)">${ruler}</div>
+    <div class="edtrack" style="height:48px"><b class="edlab">Video</b>${teaser}${segs}</div>
+    <div class="edtrack" style="height:34px"><b class="edlab">Game audio</b>${tzA}${aud}</div>
+    <div class="edtrack" style="height:34px"><b class="edlab">Music</b>${mus}</div>
     <div class="edtrack" style="height:${Math.max(1, lanes.length) * 26 + 8}px"><b class="edlab">Text</b>${txt}</div>
-    <div id="edph" class="edph" style="left:${edNow() * pps}px"></div></div>`;
-  $("#edtl").querySelectorAll(".edblk.seg").forEach(el => el.onpointerdown = ev => edDragSeg(ev, +el.dataset.i));
+    <div id="edph" class="edph" style="left:${edNow() * pps}px"><i class="edphh" title="Drag to move through the Short" onpointerdown="edScrub(event)"></i></div></div>`;
+  $("#edtl").querySelectorAll(".edtrack").forEach(el => el.onpointerdown = ev => { if (ev.target === el || ev.target.classList.contains("edlab") || ev.target.classList.contains("ednone")) edScrub(ev); });
+  $("#edtl").querySelectorAll(".edblk.seg, .edblk.aud:not(.tz)").forEach(el => el.onpointerdown = ev => edDragSeg(ev, +el.dataset.i));
+  const mb = $("#edtl .edblk.mus"); if (mb) mb.onpointerdown = ev => { ev.preventDefault(); edSelect("music", 0); };
   $("#edtl").querySelectorAll(".edblk.txt").forEach(el => el.onpointerdown = ev => edDragTxt(ev, +el.dataset.i));
 }
-function edSeek(ev) {
-  const r = $("#edtl .edinner").getBoundingClientRect(); const t = Math.max(0, (ev.clientX - r.left) / ed.pps);
-  const v = $("#edvid");
-  if (ed.orig) { const so = edSegOut(); const i = so.findIndex(([a, b]) => t >= a && t <= b); if (i >= 0) v.currentTime = ed.st.segments[i][0] + (t - so[i][0]); }
-  else v.currentTime = Math.min(t, edTotal());
-  setTimeout(edTick, 50);
+function edSeekTo(clientX) {
+  if (ed.orig) {
+    const t = edSrcAt(clientX); $("#edvid").currentTime = t;
+    $("#edph").style.left = (t * ed.spps) + "px"; $("#edtime") && ($("#edtime").textContent = edSrcLabel(t));
+    return;
+  }
+  const r = $("#edtl .edinner").getBoundingClientRect(), total = edTotal();
+  const t = Math.min(total, Math.max(0, (clientX - r.left) / ed.pps));
+  edGoto(t);
+  // Move the playhead and text right away; the video frame follows when it has seeked
+  $("#edph").style.left = (t * ed.pps) + "px";
+  $("#edtime") && ($("#edtime").textContent = `${t.toFixed(1)} s / ${total.toFixed(1)} s`);
+  const sp = $("#edsplitwrap button"); if (sp) sp.disabled = !edSplitOk();
+  edDrawText(t);
 }
-function edDrag(ev, onMove) {
+function edScrub(ev) {
+  // Click or drag on the ruler, the playhead or an empty part of a track to move through the Short
+  if (ev.button !== 0) return;
+  ev.preventDefault();
+  const v = $("#edvid"), playing = !v.paused, box = $("#edtl");
+  v.pause(); document.body.classList.add("edscrub"); edSeekTo(ev.clientX);
+  const move = e => {
+    const b = box.getBoundingClientRect(); // scroll along when dragging past either edge
+    if (e.clientX > b.right - 30) box.scrollLeft += 12; else if (e.clientX < b.left + 30) box.scrollLeft -= 12;
+    edSeekTo(e.clientX);
+  };
+  const up = () => {
+    window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
+    document.body.classList.remove("edscrub"); if (playing) v.play(); else setTimeout(edTick, 80);
+  };
+  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+}
+function edDrag(ev, onMove, onUp) {
   ev.preventDefault(); ev.stopPropagation(); const x0 = ev.clientX;
-  const move = e => onMove((e.clientX - x0) / ed.pps);
-  const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); edDraw(); edInspector(); };
+  const scale = ed.orig ? ed.spps : ed.pps, move = e => onMove((e.clientX - x0) / scale);
+  const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); onUp && onUp(); edDraw(); edInspector(); };
   window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
 }
 function edDragSeg(ev, i) {
   edSelect("seg", i);
   const edge = ev.target.classList.contains("l") ? "l" : ev.target.classList.contains("r") ? "r" : null;
   if (!edge) return;
-  const seg = ed.st.segments[i], [a0, b0] = seg, src = ed.st.source_duration;
+  const segs = ed.st.segments, seg = segs[i], [a0, b0] = seg, src = ed.st.source_duration;
+  // Grow up to the neighbouring part in the recording, so no footage is used twice
+  const lo = Math.max(0, ...segs.filter((x, k) => k !== i && x[1] <= a0 + 0.01).map(x => x[1]));
+  const hi = Math.min(src, ...segs.filter((x, k) => k !== i && x[0] >= b0 - 0.01).map(x => x[0]));
+  const tv = ed.orig ? $("#edvid") : $("#edtrimv"), lab = $("#edtrimlab");
+  if (!ed.orig && !tv.src) tv.src = `/v1/clips/${ed.st.id}/source`;
+  if (!ed.orig) tv.hidden = false;
+  let want = null, busy = false;
+  const show = t => { // one seek at a time keeps the preview responsive
+    want = t;
+    if (tv.readyState < 1) { tv.onloadedmetadata = () => show(want); return; } // not loaded yet: seek once it is
+    if (busy) return;
+    busy = true; tv.currentTime = t;
+    const done = () => { busy = false; if (Math.abs(want - tv.currentTime) > 0.05) show(want); };
+    tv.onseeked = done; setTimeout(() => busy && done(), 400); // never get stuck on a lost event
+  };
+  const label = () => {
+    const t = edge === "l" ? seg[0] : seg[1], grown = edge === "l" ? a0 - seg[0] : seg[1] - b0;
+    lab.hidden = false;
+    lab.textContent = `Part ${i + 1} ${edge === "l" ? "starts" : "ends"} at ${hms(t)} · ${(seg[1] - seg[0]).toFixed(1)} s`
+      + (Math.abs(grown) >= 0.05 ? ` (${grown > 0 ? "+" : "−"}${Math.abs(grown).toFixed(1)} s)` : "")
+      + ((edge === "l" ? seg[0] <= lo + 0.01 : seg[1] >= hi - 0.01) ? (edge === "l" ? (lo > 0 ? " · reached the previous part" : " · start of the recording") : (hi < src ? " · reached the next part" : " · end of the recording")) : "");
+  };
+  show(edge === "l" ? a0 : b0); label();
   edDrag(ev, d => {
-    if (edge === "l") seg[0] = Math.min(Math.max(0, a0 + d), seg[1] - 0.3); else seg[1] = Math.max(Math.min(src, b0 + d), seg[0] + 0.3);
+    if (edge === "l") seg[0] = Math.min(Math.max(lo, a0 + d), seg[1] - 0.3); else seg[1] = Math.max(Math.min(hi, b0 + d), seg[0] + 0.3);
     ed.dirty = ed.dirtyCuts = true;
-    if (ed.orig) $("#edvid").currentTime = edge === "l" ? seg[0] : seg[1];
+    show(edge === "l" ? seg[0] : seg[1]); label();
     edDraw(); edInspector();
+  }, () => {
+    if (!ed.orig) tv.hidden = true; lab.hidden = true;
+    setTimeout(() => { // land the playhead on the new edge so Play starts there
+      if (ed.orig) return;
+      edLiveSync(); const so = edSegOut()[i]; if (!so) return;
+      const t = edge === "l" ? so[0] : Math.max(so[0], so[1] - 1);
+      const v = $("#edvid"); if (v.readyState >= 1) edGoto(t); else v.onloadedmetadata = () => edGoto(t);
+      setTimeout(edTick, 120);
+    }, 0);
   });
 }
 function edDragTxt(ev, i) {
@@ -1138,16 +1916,53 @@ function edInspector() {
       <div class="edrow"><label>Position</label>${o.style === "bar" ? `<span class="small muted">In the caption bar</span>` : `<span class="small muted">${o.y == null ? "Default" : Math.round(o.y * 100) + "% from top"} · drag it on the preview</span>
         <button onclick="ed.st.overlays[${i}].y=null;ed.dirty=true;edInspector();edDrawText(edNow())">Reset</button>`}</div>
       <div class="row" style="margin-top:10px"><button onclick="edJump(${o.start_s})">Go to</button><div class="grow"></div><button onclick="edDelete()">Delete text</button></div>`;
+  } else if ((ed.sel?.kind === "pick" || ed.sel?.kind === "mom") && ed.pick) {
+    const [a, b] = ed.pick, m = ed.sel.kind === "mom" ? ed.moments[ed.sel.i] : null;
+    const total = s.segments.reduce((t, [x, y]) => t + y - x, 0);
+    const overlap = s.segments.findIndex(([x, y]) => a < y && b > x);
+    html = `<h2>${m ? `Moment #${m.rank}` : "Add to your Short"}</h2>
+      ${m ? `<div><b>${esc(m.ai?.title || "Moment at " + hms(m.peak_s))}</b> ${m.tier ? `<span class="badge">${esc(m.tier)}</span>` : ""}</div>
+        ${m.ai?.what_happens ? `<div class="small muted" style="margin-top:4px">${esc(m.ai.what_happens)}</div>` : ""}` : ""}
+      <div class="edrow"><label>Start</label><input type="number" step="0.1" value="${a.toFixed(1)}" onchange="edSetMarks(Math.min(+this.value,ed.pick[1]-0.3),ed.pick[1]);edDraw();edInspector()"> <span class="small muted">${hms(a)}</span></div>
+      <div class="edrow"><label>End</label><input type="number" step="0.1" value="${b.toFixed(1)}" onchange="edSetMarks(ed.pick[0],Math.max(+this.value,ed.pick[0]+0.3));edDraw();edInspector()"> <span class="small muted">${hms(b)}</span></div>
+      <div class="small muted" style="margin-top:6px">${(b - a).toFixed(1)} s · your Short would be about ${Math.round(total + b - a)} s before effects.
+        ${overlap >= 0 ? `<br>Overlaps part ${overlap + 1}: they'll be joined into one part.` : ""}
+        Parts play in the order they happen in the recording.</div>
+      <div class="row" style="margin-top:10px"><button class="primary" onclick="edAddPick()">＋ Add to Short</button>
+        <button onclick="$('#edvid').currentTime=ed.pick[0];$('#edvid').play()">▶ Play it</button><div class="grow"></div>
+        <button onclick="edSetMarks(null,null);ed.sel=null;edDraw();edInspector()">Clear marks</button></div>`;
+  } else if (ed.sel?.kind === "music" && ed.audio?.music) {
+    const m = ed.audio.music, kind = { ai: "AI music", score: "SPHURA score", track: "Your track" }[m.kind];
+    html = `<h2>Music</h2><div><b>${esc(m.name)}</b></div>
+      <div class="small muted">${[kind, m.mood, m.bpm && m.bpm + " BPM"].filter(Boolean).map(esc).join(" · ")}</div>
+      <div class="edrow"><label>Starts</label><span class="small">${m.in_s > 0.05 ? `at ${m.in_s.toFixed(1)} s, after the cold open` : "at the start"}</span></div>
+      <div class="edrow"><label>Volume</label><span class="small">${m.gain_db != null ? `${m.gain_db} dB, ` : ""}${m.duck ? "backs off when the game gets loud" : "music-led: the game audio sits underneath"}</span></div>
+      ${m.dip ? `<div class="edrow"><label>Drop</label><span class="small">Drops out at ${m.dip[0].toFixed(1)} s so the key hit lands clean</span></div>` : ""}
+      ${m.credit ? `<div class="edrow"><label>Credit</label><span class="small">${esc(m.credit)}</span></div>` : ""}
+      <div class="small muted" style="margin-top:8px">The ticks on the track are its beats; cuts and the key hit are lined up with them.
+        ${ed.dirtyCuts ? "<br><b>Your cut changes re-sync the same song when you update the preview.</b>" : ""}</div>
+      <div class="small muted" style="margin-top:8px">To change the song or its volume, use <b>Change</b> under this Short on the Shorts page.</div>`;
   } else if (ed.sel?.kind === "seg" && s.segments[ed.sel.i]) {
     const [a, b] = s.segments[ed.sel.i], i = ed.sel.i;
-    html = `<h2>Part ${i + 1}</h2><div class="small muted">From the original recording: ${hms(a)} to ${hms(b)}</div>
+    html = `<h2>Part ${i + 1}</h2><div class="small muted">From the original recording: ${hms(a)} to ${hms(b)}. Its video and game audio are trimmed together.</div>
       <div class="edrow"><label>Starts</label><button onclick="edNudge(${i},0,-1)">−1s</button><button onclick="edNudge(${i},0,-0.1)">−0.1</button>
         <input type="number" step="0.1" value="${a.toFixed(1)}" onchange="edSetSeg(${i},0,this.value)"><button onclick="edNudge(${i},0,0.1)">+0.1</button><button onclick="edNudge(${i},0,1)">+1s</button></div>
       <div class="edrow"><label>Ends</label><button onclick="edNudge(${i},1,-1)">−1s</button><button onclick="edNudge(${i},1,-0.1)">−0.1</button>
         <input type="number" step="0.1" value="${b.toFixed(1)}" onchange="edSetSeg(${i},1,this.value)"><button onclick="edNudge(${i},1,0.1)">+0.1</button><button onclick="edNudge(${i},1,1)">+1s</button></div>
-      <div class="small muted" style="margin:6px 0">Tip: switch to "Original footage" to see the exact frame you cut on.</div>
-      <div class="row"><button onclick="edSplit()">✂ Split at playhead</button><div class="grow"></div><button ${s.segments.length < 2 ? "disabled" : ""} onclick="edDelete()">Delete part</button></div>`;
-  } else html = `<h2>Edit</h2><div class="small muted">Click a part or a text block in the timeline to edit it, or add text at the playhead.</div>`;
+      <div class="small muted" style="margin:6px 0">Drag its edges in the timeline: outward adds footage from the recording, inward cuts. Or use the buttons above. To cut a piece out of the middle, split it twice and delete the piece in between.</div>
+      <div class="row"><div class="grow"></div><button ${s.segments.length < 2 ? "disabled" : ""} onclick="edDelete()">🗑 Delete part ${i + 1}</button></div>`;
+  } else if (ed.orig) html = `<h2>Add footage</h2><ol class="edhelp">
+      <li><b>Find the moment.</b> Play the recording, or click or drag on the ruler. Yellow blocks are moments SPHURA found: click one to mark it.</li>
+      <li><b>Mark where it starts and ends</b> with <b>⟦ Mark start</b> and <b>Mark end ⟧</b> (or drag across the recording track).</li>
+      <li>Press <b>＋ Add to Short</b>. It goes in where it happens in the recording.</li>
+      <li>To take something <b>out</b>, mark it and press <b>− Remove from Short</b>.</li>
+      <li>Press <b>← Back to Short</b>, then <b>▶ Update preview</b> to watch the result.</li></ol>`;
+  else html = `<h2>How to edit</h2><ol class="edhelp">
+      <li><b>Make a part longer or shorter</b> (like CapCut): drag its left edge <b>left</b> to add the footage just before it, or its right edge <b>right</b> to add what comes after. Drag inward to cut. The preview shows the frame where the edge is.</li>
+      <li><b>Cut out the middle:</b> move the playhead to where the cut starts and press <b>✂ Split here</b>, do the same where it ends, then click the piece in between and press <b>🗑 Delete</b>.</li>
+      <li><b>Add more footage:</b> press <b>＋ Add footage…</b> to open the full recording.</li>
+      <li><b>Add text:</b> move the playhead and press <b>＋ Text here</b>. Click text in the timeline to change it.</li>
+      <li>Press <b>▶ Update preview</b> to watch your changes, then <b>Save & export</b>.</li></ol>`;
   if (s.style !== "meme") html += `<h2 style="margin-top:18px">Layout</h2>
     <label class="small" style="display:block"><input type="checkbox" ${s.caption_bar ? "checked" : ""} onchange="ed.st.caption_bar=this.checked;ed.dirty=ed.dirtyBar=true;edInspector()"> White caption bar on top (meme-style)</label>
     ${ed.dirtyBar ? `<div class="small" style="color:var(--accent2)">Click "Update preview" to see the new layout and its caption.</div>` : ""}`;
@@ -1155,9 +1970,9 @@ function edInspector() {
     ${s.toggles.map(k => `<label class="small" style="display:block"><input type="checkbox" ${s.fx_off.includes(k) ? "" : "checked"} onchange="edFx('${k}',this.checked)"> ${FX_NAMES[k] || k}</label>`).join("")}
     ${s.music ? `<div class="small muted" style="margin-top:8px">♪ ${esc(s.music)} (change it on the Shorts page)</div>` : ""}
     <div class="small muted" style="margin-top:8px">Cuts and effect changes are applied when you update the preview or save.</div>`;
-  el.innerHTML = html;
+  el.innerHTML = html; edToolbar();
 }
-function edJump(t) { if (ed.orig) { document.querySelector('input[value=short]').click(); } $("#edvid").currentTime = t + 0.05; setTimeout(edTick, 60); }
+function edJump(t) { if (ed.orig) edMode(false); edGoto(t + 0.05); setTimeout(edTick, 60); }
 function edSetTime(i, k, v) { const o = ed.st.overlays[i]; o[k] = Math.max(0, +v); if (o.end_s <= o.start_s) o.end_s = o.start_s + 0.5; ed.dirty = true; edDraw(); edDrawText(edNow()); }
 function edSetSeg(i, j, v) { const seg = ed.st.segments[i]; seg[j] = Math.max(0, Math.min(ed.st.source_duration, +v)); if (seg[1] - seg[0] < 0.3) seg[j] = j ? seg[0] + 0.3 : seg[1] - 0.3; ed.dirty = ed.dirtyCuts = true; edDraw(); edInspector(); if (ed.orig) $("#edvid").currentTime = seg[j]; }
 function edNudge(i, j, d) { edSetSeg(i, j, ed.st.segments[i][j] + d); }
@@ -1175,7 +1990,7 @@ function edSplit() {
   ed.st.segments.splice(i, 1, [a, cut], [cut, b]); ed.dirty = ed.dirtyCuts = true; edSelect("seg", i + 1);
 }
 function edDelete() {
-  if (!ed.sel) return;
+  if (!ed.sel || !["txt", "seg"].includes(ed.sel.kind)) return; // only text and parts can be deleted here
   if (ed.sel.kind === "txt") ed.st.overlays.splice(ed.sel.i, 1);
   else { if (ed.st.segments.length < 2) return toast("A Short needs at least one part"); ed.st.segments.splice(ed.sel.i, 1); ed.dirtyCuts = true; }
   ed.dirty = true; ed.sel = null; edDraw(); edInspector(); edDrawText(edNow());
@@ -1198,6 +2013,7 @@ async function edRender(kind, quiet) {
     }
     const keepSel = ed.sel, t = edNow();
     ed.st = await api(`/v1/clips/${ed.st.id}/editor`); ed.dirty = ed.dirtyCuts = ed.dirtyFx = ed.dirtyBar = false; ed.sel = keepSel;
+    ed.audioKey = null; // cuts, speed and music may have changed
     if (kind === "final") toast("Saved and exported");
     renderEditor();
     $("#edstatus").textContent = kind === "draft" ? "Preview updated" : "Saved and exported to your Shorts folder";
@@ -1210,6 +2026,8 @@ document.addEventListener("keydown", e => {
   if (e.code === "Space") { e.preventDefault(); edPlay(); }
   else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); edDelete(); }
   else if (e.key === "s" || e.key === "S") edSplit();
+  else if (ed.orig && (e.key === "i" || e.key === "I")) edMark(0);
+  else if (ed.orig && (e.key === "o" || e.key === "O")) edMark(1);
 });
 
 // ---------- Start ----------
@@ -1217,6 +2035,8 @@ document.addEventListener("keydown", e => {
   loadStatus();
   const ps = await loadProjects().catch(() => []);
   if (location.hash === "#music") showMusic();
+  else if (location.hash === "#reels") showReels();
+  else if (location.hash.startsWith("#reel/")) openReel(location.hash.slice(6));
   else if (location.hash.startsWith("#edit/")) openEditor(location.hash.slice(6));
   else if (location.hash.startsWith("#downloads")) showDownloads(location.hash === "#downloads/library" ? "library" : "queue");
   else if (ps.length) openProject(ps[0].id); else showNew();

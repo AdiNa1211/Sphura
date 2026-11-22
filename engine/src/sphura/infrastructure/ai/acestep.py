@@ -111,6 +111,15 @@ class AceStep:
         finally:
             self.status["running"] = False
 
+    def _server_cmd(self) -> list[str]:
+        """Run the server with the install's own Python. The acestep-api.exe launcher uv
+        generates is unsigned, so Windows Smart App Control blocks it (os error 4551)."""
+        venv = self.repo / ".venv"
+        py = venv / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+        if py.is_file():
+            return [str(py), "-m", "acestep.api_server"]
+        return [str(self._uv()), "run", "acestep-api"]
+
     def _uv(self) -> Path:
         return self.root / "uv" / ("uv.exe" if sys.platform == "win32" else "uv")
 
@@ -180,7 +189,7 @@ class AceStep:
                 logf.write(f"\n=== {time.strftime('%Y-%m-%d %H:%M:%S')} starting\n")
                 logf.flush()
                 self._proc = subprocess.Popen(
-                    [str(self._uv()), "run", "acestep-api"], cwd=self.repo, env=self._env(),
+                    self._server_cmd(), cwd=self.repo, env=self._env(),
                     stdout=logf, stderr=subprocess.STDOUT, **POPEN_FLAGS,
                 )  # fmt: skip
             deadline = time.monotonic() + timeout_s

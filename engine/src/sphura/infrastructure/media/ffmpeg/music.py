@@ -79,6 +79,23 @@ class MusicLibrary:
             **{k: str(meta.get(k, "")) for k in _META_KEYS},
         )  # fmt: skip
 
+    def envelope(
+        self, path: Path, start_s: float, duration_s: float, frame_s: float
+    ) -> list[float]:
+        """Loudness per frame_s of one stretch of a file: the editor's waveform."""
+        if duration_s <= 0:
+            return []
+        raw = run_bytes(
+            [self._tc.ffmpeg, "-v", "error", "-ss", f"{max(0.0, start_s):.3f}", "-t",
+             f"{duration_s:.3f}", "-i", str(path), "-vn", "-ac", "1", "-ar", str(RATE),
+             "-f", "s16le", "-"],
+            timeout_s=60,
+        )  # fmt: skip
+        x = np.frombuffer(raw, "<i2").astype(np.float32) / 32768
+        n = max(1, int(RATE * frame_s))
+        x = x[: len(x) // n * n].reshape(-1, n)
+        return [float(v) for v in np.sqrt(np.mean(x * x, axis=1))] if len(x) else []
+
     def meta(self) -> dict[str, dict[str, str]]:
         try:
             raw = json.loads((self.folder / META_FILE).read_text(encoding="utf-8"))

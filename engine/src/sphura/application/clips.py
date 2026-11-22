@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import copy
 import logging
+import math
 import re
 import shutil
 import threading
@@ -94,7 +95,9 @@ class ClipService:
         sample: Callable[[str, list[float]], list[bytes]] | None = None,
         ai_music: AceStep | None = None,
         analyze: Callable[..., MusicTrack] | None = None,
+        envelope: Callable[[Path, float, float, float], list[float]] | None = None,
     ) -> None:
+        self._envelope = envelope
         self._queries = queries
         self._clips = clips
         self._queue = queue
@@ -417,6 +420,42 @@ class ClipService:
         m["offset_s"] = 0.0  # the score is written on the clip's own timeline
         clip.effects.append(m)
 
+    def reel_mood(self, judgement: Any, seed: int) -> tuple[str, float]:
+        """Mood and tempo for a highlight reel, known before the cuts are snapped to it."""
+        category = judgement.category.value if judgement and judgement.category else None
+        tags = tuple(judgement.tags) if judgement else ()
+        mood = mood_for(category, tags, "hype", seed)
+        return mood, base_bpm(mood, seed)
+
+    def reel_music(
+        self, dest: Path, duration_s: float, mood: str, bpm: float, seed: int,
+        accent_s: float, judgement: Any, game: str | None,
+    ) -> dict[str, Any]:  # fmt: skip
+        """A full-length soundtrack for a reel: the local AI model when it's installed,
+        else the built-in composer (its big hit placed on the reel's climax)."""
+        label = MOODS[mood].label
+        if self.ai_music_ready():
+            assert self._ai is not None and self._analyze is not None
+            try:
+                prompt = write_music_prompt(self._llm, judgement, game, mood, label, seed)
+                self._ai.generate(prompt, duration_s + 4, round(bpm), seed, dest)
+                track = self._analyze(dest)
+                tempo = 60 / track.beat_s if track.beat_s else bpm
+                for k in (2.0, 0.5):  # half- or double-time lock of the beat detector
+                    if abs(tempo / bpm - k) < 0.12:
+                        tempo /= k
+                return {"path": str(dest), "bpm": tempo, "beat0_s": track.beat0_s,
+                        "label": label, "mood": mood, "ai": True}  # fmt: skip
+            except Exception as e:  # never lose the reel over the music
+                log.warning("AI music for the reel failed, using the built-in score: %s", e)
+        write_score(dest, compose(ScorePlan(duration_s + 1, bpm, accent_s, accent_s, mood, seed)))
+        return {"path": str(dest), "bpm": bpm, "beat0_s": accent_s % (60 / bpm),
+                "label": label, "mood": mood, "ai": False}  # fmt: skip
+
+    def wav_for(self, project_id: str, asset_id: str) -> WavFile | None:
+        """The analysis audio of a video (for effect timing), if it's still on disk."""
+        return self._wav(Clip(project_id=project_id, asset_id=asset_id, title="", segments=[]))
+
     def set_music(self, clip_id: str, choice: str, volume_db: float | None = None) -> Clip:
         """choice: "auto", "none" or the path of a track in the music folder."""
         clip = self._clips.get(clip_id)
@@ -524,6 +563,91 @@ class ClipService:
             "fx_kind": kind, "fx_label": LABELS.get(kind, ""), "toggles": list(TOGGLES),
             "caption_bar": bool(clip.publish.get("caption_bar")),
             "music": gen.get("label") or (Path(music["path"]).stem if music else None),
+        }  # fmt: skip
+
+    def editor_audio(
+        self, clip_id: str, segments: list[list[float]] | None = None
+    ) -> dict[str, Any]:
+        """Waveforms for the editor's audio tracks: game audio per part (on the Short's
+        timeline, slow-mo included) and the music as it plays. Unsaved cuts map 1:1."""
+        clip = self._get(clip_id)
+        frame, wav = 0.05, self._wav(clip)
+        saved = segments is None or [[float(a), float(b)] for a, b in segments] == [
+            [s.start_s, s.end_s] for s in clip.segments
+        ]
+        ranges = (
+            clip.segments if saved else [TimeRange(float(a), float(b)) for a, b in segments or []]
+        )
+
+        def game(src: TimeRange, pre_s: float | None) -> list[float]:
+            if wav is None:
+                return []
+            step = frame / 4
+            r = wav.rms_frames(src.start_s, src.end_s, step)
+            if pre_s is None:  # unsaved cuts: drawn 1:1 like the editor does
+                quads = r[: len(r) // 4 * 4].reshape(-1, 4)
+                return [float(v) for v in quads.max(axis=1)] if len(quads) else []
+            out0 = clip.to_output_time(pre_s)
+            n = max(1, int((clip.to_output_time(pre_s + src.duration_s) - out0) / frame))
+            env = [-1.0] * n
+            for k, v in enumerate(r):
+                j = min(n - 1, int((clip.to_output_time(pre_s + k * step) - out0) / frame))
+                env[j] = max(env[j], float(v))
+            for j in range(n):  # slow motion stretches the audio: fill the gaps it leaves
+                if env[j] < 0:
+                    env[j] = env[j - 1] if j else 0.0
+            return env
+
+        teaser = next((e for e in clip.effects if e["type"] == "cold_open"), None)
+        tease = TimeRange(teaser["start_s"], teaser["end_s"]) if teaser else None
+        pre = tease.duration_s if tease else 0.0
+        parts = []
+        for seg in ranges:
+            parts.append(game(seg, pre if saved else None))
+            pre += seg.duration_s
+        tease_env = game(tease, 0.0) if tease and saved else (game(tease, None) if tease else [])
+        peak = max([v for e in [*parts, tease_env] for v in e] or [0.0]) or 1.0
+
+        def norm(e: list[float]) -> list[float]:  # square root: closer to how loud it sounds
+            return [round(min(1.0, v / peak) ** 0.5, 3) for v in e]
+
+        return {
+            "frame_s": frame,
+            "teaser": norm(tease_env),
+            "parts": [norm(e) for e in parts],
+            "music": self._music_track(clip, frame),
+        }
+
+    def _music_track(self, clip: Clip, frame: float) -> dict[str, Any] | None:
+        m = next((e for e in clip.effects if e["type"] == "music"), None)
+        if m is None or not Path(m["path"]).is_file():
+            return None
+        path, gen = Path(m["path"]), m.get("generated") or {}
+        dur, t0 = clip.output_duration_s, float(m.get("in_s", 0.0))
+        env: list[float] = []
+        if self._envelope is not None:
+            with contextlib.suppress(Exception):  # a waveform is nice to have, never required
+                env = self._envelope(path, m["offset_s"] + t0, dur - t0, frame)
+        peak = max(env or [0.0]) or 1.0
+        track = next((t for t in self._music() if t.path == m["path"]), None)
+        if track is None and self._analyze is not None:
+            with contextlib.suppress(Exception):
+                track = self._analyze(path)
+        bpm = gen.get("bpm") or (round(60 / track.beat_s) if track and track.beat_s else None)
+        beats: list[float] = []
+        if track and track.beat_s > 0 and bpm:  # beat marks, spaced by the tempo shown
+            step = 60 / float(bpm)
+            k = math.ceil((m["offset_s"] + t0 - track.beat0_s) / step)
+            while (t := track.beat0_s + k * step - m["offset_s"]) < dur:
+                beats.append(round(t, 3))
+                k += 1
+        return {
+            "name": gen.get("label") or path.stem,
+            "kind": "ai" if gen.get("ai") else "score" if gen else "track",
+            "mood": gen.get("mood"), "bpm": bpm,
+            "in_s": round(t0, 3), "gain_db": m.get("gain_db"), "duck": m.get("duck", True),
+            "dip": m.get("dip"), "credit": m.get("credit", ""),
+            "env": [round((v / peak) ** 0.5, 3) for v in env], "beats": beats,
         }  # fmt: skip
 
     def apply_edit(
@@ -645,6 +769,17 @@ class ClipService:
     def draft_path(self, clip_id: str) -> Path:
         clip = self._get(clip_id)
         return self._storage.artifact_path(clip.project_id, "drafts", f"{clip.id}.mp4")
+
+    def frame_slot(self, clip_id: str, t: float) -> tuple[Path, str, float]:
+        """Cache file, source and snapped time of a filmstrip frame (every 0.5 s of the
+        recording, shared by all Shorts of the stream)."""
+        clip = self._get(clip_id)
+        asset = self._assets.get(clip.asset_id)
+        if asset is None:
+            raise NotFoundError("source video not found")
+        half = max(0, round(t * 2))
+        path = self._storage.artifact_path(clip.project_id, "thumbs", f"strip_{half}.jpg")
+        return path, asset.source_uri, half / 2
 
     def source_path(self, clip_id: str) -> Path:
         clip = self._get(clip_id)

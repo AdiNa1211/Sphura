@@ -3,6 +3,7 @@ whose Host isn't this machine, so web pages can't drive it via DNS rebinding."""
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -90,6 +91,28 @@ class EditorSave(BaseModel):
     fx_off: list[str] | None = None
     caption_bar: bool | None = None
     render: str = "draft"  # draft (preview) | final (export the Short)
+
+
+class EditorAudio(BaseModel):
+    segments: list[list[float]] | None = None  # unsaved cuts; None = as saved
+
+
+class ReelNew(BaseModel):
+    name: str = ""
+
+
+class ReelPaths(BaseModel):
+    paths: list[str] = Field(min_length=1, max_length=100)
+
+
+class ReelMove(BaseModel):
+    index: int
+
+
+class ReelPatch(BaseModel):
+    name: str | None = None
+    settings: dict[str, Any] | None = None
+    picks: list[dict[str, Any]] | None = None
 
 
 class TextEdit(BaseModel):
@@ -407,6 +430,10 @@ def build_router(dependencies: list[Any]) -> APIRouter:
         state["has_draft"] = engine.clips.draft_path(clip_id).is_file()
         return state
 
+    @r.post("/v1/clips/{clip_id}/editor/audio", dependencies=dependencies)
+    def editor_audio(clip_id: str, body: EditorAudio, engine: Engine) -> dict[str, Any]:
+        return engine.clips.editor_audio(clip_id, body.segments)
+
     @r.put("/v1/clips/{clip_id}/editor", dependencies=dependencies)
     def save_editor(clip_id: str, body: EditorSave, engine: Engine) -> dict[str, Any]:
         clips = engine.clips
@@ -422,6 +449,19 @@ def build_router(dependencies: list[Any]) -> APIRouter:
         if not path.is_file():
             raise HTTPException(404, "no preview yet")
         return FileResponse(path, media_type="video/mp4", headers={"Cache-Control": "no-store"})
+
+    @r.get("/v1/clips/{clip_id}/frame.jpg", dependencies=dependencies)
+    def strip_frame(clip_id: str, t: float, engine: Engine) -> FileResponse:
+        path, uri, at = engine.clips.frame_slot(clip_id, t)
+        if not path.is_file():
+            try:
+                jpeg = engine.sampler.sample(uri, [at], 160)[0]
+            except Exception as e:  # e.g. past the end of the recording
+                raise HTTPException(404, "no frame there") from e
+            path.write_bytes(jpeg)
+        return FileResponse(
+            path, media_type="image/jpeg", headers={"Cache-Control": "max-age=604800"}
+        )
 
     @r.get("/v1/clips/{clip_id}/source", dependencies=dependencies)
     def source_video(clip_id: str, engine: Engine) -> FileResponse:
@@ -452,6 +492,142 @@ def build_router(dependencies: list[Any]) -> APIRouter:
         if not folder.resolve().is_relative_to(allowed) or not folder.is_dir():
             raise HTTPException(400, "can only open SPHURA output folders")
         _reveal(folder)
+        return {"ok": True}
+
+    # ---------- AI highlight reels ----------
+
+    @r.get("/v1/reels", dependencies=dependencies)
+    def reels(engine: Engine) -> list[dict[str, Any]]:
+        return engine.reels.all()
+
+    @r.post("/v1/reels", dependencies=dependencies)
+    def new_reel(body: ReelNew, engine: Engine) -> dict[str, Any]:
+        return engine.reels.create(body.name)
+
+    @r.get("/v1/reels/hidden-projects", dependencies=dependencies)
+    def reel_projects(engine: Engine) -> list[str]:
+        return engine.reels.hidden_projects()
+
+    @r.get("/v1/reels/branding", dependencies=dependencies)
+    def reel_branding(engine: Engine) -> dict[str, str]:
+        return engine.reels.branding()
+
+    @r.put("/v1/reels/branding", dependencies=dependencies)
+    def set_reel_branding(body: dict[str, Any], engine: Engine) -> dict[str, str]:
+        return engine.reels.set_branding(body)
+
+    @r.post("/v1/reels/branding/choose", dependencies=dependencies)
+    def choose_branding_file(kind: str) -> dict[str, Any]:
+        if kind == "logo":
+            types = "[('Images', '*.png *.jpg *.jpeg *.webp'), ('All files', '*.*')]"
+        else:
+            types = "[('Videos', '*.mp4 *.mov *.mkv *.webm *.avi'), ('All files', '*.*')]"
+        dialog = (
+            f"askopenfilename(initialdir=sys.argv[1], title='Choose a file', filetypes={types})"
+        )
+        return {"path": _pick(dialog, str(Path.home()))}
+
+    @r.get("/v1/reels/{reel_id}", dependencies=dependencies)
+    def reel(reel_id: str, engine: Engine) -> dict[str, Any]:
+        return engine.reels.get(reel_id)
+
+    @r.patch("/v1/reels/{reel_id}", dependencies=dependencies)
+    def update_reel(reel_id: str, body: ReelPatch, engine: Engine) -> dict[str, Any]:
+        return engine.reels.update(reel_id, body.model_dump(exclude_none=True))
+
+    @r.delete("/v1/reels/{reel_id}", dependencies=dependencies)
+    def delete_reel(reel_id: str, engine: Engine) -> dict[str, bool]:
+        engine.reels.delete(reel_id)
+        return {"ok": True}
+
+    @r.post("/v1/reels/{reel_id}/sources", dependencies=dependencies)
+    def add_reel_paths(reel_id: str, body: ReelPaths, engine: Engine) -> dict[str, Any]:
+        return engine.reels.add_paths(reel_id, [p.strip().strip('"') for p in body.paths])
+
+    @r.post("/v1/reels/{reel_id}/choose-files", dependencies=dependencies)
+    def choose_reel_files(reel_id: str, engine: Engine) -> dict[str, Any]:
+        videos = Path.home() / "Videos"
+        paths = _pick_many(str(videos if videos.is_dir() else Path.home()))
+        return engine.reels.add_paths(reel_id, paths) if paths else engine.reels.get(reel_id)
+
+    @r.post("/v1/reels/{reel_id}/upload", dependencies=dependencies)
+    async def upload_reel_file(
+        reel_id: str, name: str, request: Request, engine: Engine
+    ) -> dict[str, Any]:
+        """Raw file body, streamed to disk (recordings can be several GB)."""
+        dest = engine.reels.upload_target(reel_id, name)
+        tmp = dest.with_name(dest.name + ".part")
+        try:
+            with tmp.open("wb") as f:
+                async for chunk in request.stream():
+                    f.write(chunk)
+            tmp.replace(dest)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
+        return engine.reels.add_paths(reel_id, [str(dest)], uploaded=True)
+
+    @r.delete("/v1/reels/{reel_id}/sources/{source_id}", dependencies=dependencies)
+    def remove_reel_source(reel_id: str, source_id: str, engine: Engine) -> dict[str, Any]:
+        return engine.reels.remove_source(reel_id, source_id)
+
+    @r.post("/v1/reels/{reel_id}/sources/{source_id}/move", dependencies=dependencies)
+    def move_reel_source(
+        reel_id: str, source_id: str, body: ReelMove, engine: Engine
+    ) -> dict[str, Any]:
+        return engine.reels.move_source(reel_id, source_id, body.index)
+
+    @r.get("/v1/reels/{reel_id}/sources/{source_id}/video", dependencies=dependencies)
+    def reel_source_video(reel_id: str, source_id: str, engine: Engine) -> FileResponse:
+        return FileResponse(engine.reels.source_file(reel_id, source_id), media_type="video/mp4")
+
+    @r.get("/v1/reels/{reel_id}/moments/{moment_id}/thumb.jpg", dependencies=dependencies)
+    def reel_moment_thumb(reel_id: str, moment_id: str, engine: Engine) -> FileResponse:
+        path = engine.reels.moment_thumb(reel_id, moment_id)
+        return FileResponse(
+            path, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"}
+        )
+
+    @r.post("/v1/reels/{reel_id}/analyse", dependencies=dependencies)
+    def analyse_reel(reel_id: str, engine: Engine) -> dict[str, Any]:
+        return engine.reels.analyse(reel_id)
+
+    @r.post("/v1/reels/{reel_id}/cancel", dependencies=dependencies)
+    def cancel_reel(reel_id: str, engine: Engine) -> dict[str, Any]:
+        return engine.reels.cancel(reel_id)
+
+    @r.post("/v1/reels/{reel_id}/regenerate", dependencies=dependencies)
+    def regenerate_reel(reel_id: str, engine: Engine) -> dict[str, Any]:
+        return engine.reels.regenerate(reel_id)
+
+    @r.post("/v1/reels/{reel_id}/generate", dependencies=dependencies)
+    def generate_reel(reel_id: str, engine: Engine) -> dict[str, Any]:
+        return engine.reels.generate(reel_id)
+
+    @r.get("/v1/reels/{reel_id}/output.mp4", dependencies=dependencies)
+    def reel_output(reel_id: str, engine: Engine) -> FileResponse:
+        out = engine.reels.get(reel_id).get("output") or {}
+        if not out.get("path") or not Path(out["path"]).is_file():
+            raise HTTPException(404, "the reel hasn't been made yet, or the file was moved")
+        return FileResponse(
+            out["path"], media_type="video/mp4", headers={"Cache-Control": "no-store"}
+        )
+
+    @r.get("/v1/reels/{reel_id}/thumbnail.jpg", dependencies=dependencies)
+    def reel_thumbnail(reel_id: str, engine: Engine) -> FileResponse:
+        out = engine.reels.get(reel_id).get("output") or {}
+        if not out.get("thumbnail") or not Path(out["thumbnail"]).is_file():
+            raise HTTPException(404, "no thumbnail")
+        return FileResponse(
+            out["thumbnail"], media_type="image/jpeg", headers={"Cache-Control": "no-store"}
+        )
+
+    @r.post("/v1/reels/{reel_id}/reveal", dependencies=dependencies)
+    def reveal_reel(reel_id: str, engine: Engine) -> dict[str, bool]:
+        out = engine.reels.get(reel_id).get("output") or {}
+        if not out.get("path"):
+            raise HTTPException(404, "the reel hasn't been made yet")
+        _reveal(Path(out["path"]))
         return {"ok": True}
 
     return r
@@ -534,6 +710,23 @@ def _pick(dialog: str, start: str) -> str | None:
     if out.returncode != 0:
         raise HTTPException(500, "couldn't open the picker; type the path instead")
     return str(Path(out.stdout.strip())) if out.stdout.strip() else None
+
+
+def _pick_many(start: str) -> list[str]:
+    """Native multi-file picker for videos (child process, like _pick)."""
+    code = (
+        "import sys, json, tkinter as tk; from tkinter import filedialog\n"
+        "r = tk.Tk(); r.withdraw(); r.attributes('-topmost', True)\n"
+        "print(json.dumps(list(filedialog.askopenfilenames(initialdir=sys.argv[1], "
+        "title='Choose videos for the highlight reel', filetypes=[('Videos', "
+        "'*.mp4 *.mov *.mkv *.webm *.avi *.m4v *.ts *.flv'), ('All files', '*.*')]))))"
+    )
+    try:
+        out = subprocess.run([sys.executable, "-c", code, start], capture_output=True,
+                             text=True, timeout=600)  # fmt: skip
+        return [str(Path(p)) for p in json.loads(out.stdout.strip() or "[]")]
+    except (OSError, subprocess.TimeoutExpired, ValueError) as e:
+        raise HTTPException(500, "couldn't open the picker; drop the files in instead") from e
 
 
 def _reveal(path: Path) -> None:

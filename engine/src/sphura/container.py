@@ -10,6 +10,7 @@ from sphura.application.downloads import DownloadManager
 from sphura.application.feedback import FeedbackService
 from sphura.application.ingest import ChecksumHandler, IngestService
 from sphura.application.queries import QueryService
+from sphura.application.reels import ReelService
 from sphura.config import Settings, default_data_dir
 from sphura.domain.models import JobType
 from sphura.infrastructure.ai.accel import WhisperAccelChecker
@@ -20,6 +21,7 @@ from sphura.infrastructure.ai.ollama import OllamaProvider
 from sphura.infrastructure.ai.whisper import FasterWhisperProvider
 from sphura.infrastructure.events.bus import InProcessEventBus
 from sphura.infrastructure.media.ffmpeg.audio import FFmpegAudioExtractor
+from sphura.infrastructure.media.ffmpeg.compile import FFmpegReelCompiler
 from sphura.infrastructure.media.ffmpeg.frames import FFmpegFrameDecoder
 from sphura.infrastructure.media.ffmpeg.music import MusicLibrary
 from sphura.infrastructure.media.ffmpeg.probe import FfprobeMediaProbe
@@ -30,6 +32,7 @@ from sphura.infrastructure.media.sniff import MagicBytesSniffer
 from sphura.infrastructure.media.ytdlp import YouTubeImporter
 from sphura.infrastructure.persistence.sqlite.db import SqliteDatabase
 from sphura.infrastructure.persistence.sqlite.downloads import SqliteDownloadRepository
+from sphura.infrastructure.persistence.sqlite.reels import SqliteReelRepository
 from sphura.infrastructure.persistence.sqlite.repositories import (
     SqliteCandidateRepository,
     SqliteClipRepository,
@@ -68,12 +71,15 @@ class LocalEngine:
     music: MusicLibrary
     downloads: DownloadManager
     ai_music: AceStep
+    reels: ReelService
 
     def start(self) -> None:
         self.queue.start()
         self.downloads.start()
+        self.reels.start()
 
     def stop(self) -> None:
+        self.reels.stop()
         self.downloads.stop()
         self.ai_music.stop()
         self.queue.stop()
@@ -131,6 +137,19 @@ def build_local_engine(settings: Settings) -> LocalEngine:
     ai_music = AceStep(default_acestep_root())
     ingest = IngestService(projects, assets, reader, storage, MagicBytesSniffer(), probe, queue)
     analysis = AnalysisService(projects, assets, jobs, queue)
+    clips = ClipService(
+        queries,
+        clip_repo,
+        queue,
+        assets,
+        storage,
+        music.tracks,
+        llm,
+        lambda uri, times: sampler.sample(uri, times, 640),
+        ai_music,
+        music.analyze,
+        music.envelope,
+    )
 
     return LocalEngine(
         settings=settings,
@@ -143,18 +162,7 @@ def build_local_engine(settings: Settings) -> LocalEngine:
         llm=llm,
         ingest=ingest,
         analysis=analysis,
-        clips=ClipService(
-            queries,
-            clip_repo,
-            queue,
-            assets,
-            storage,
-            music.tracks,
-            llm,
-            lambda uri, times: sampler.sample(uri, times, 640),
-            ai_music,
-            music.analyze,
-        ),
+        clips=clips,
         feedback=FeedbackService(clip_repo, candidates, feedback_repo),
         queries=queries,
         sampler=sampler,
@@ -170,6 +178,22 @@ def build_local_engine(settings: Settings) -> LocalEngine:
             queries,
             settings.data_dir,
             lambda uri, times, width: sampler.sample(uri, times, width),
+        ),
+        reels=ReelService(
+            SqliteReelRepository(db),
+            ingest,
+            analysis,
+            queries,
+            queue,
+            assets,
+            clips,
+            FFmpegRenderer(toolchain),
+            FFmpegReelCompiler(toolchain),
+            FFmpegFrameDecoder(toolchain),
+            probe,
+            lambda uri, times, width: sampler.sample(uri, times, width),
+            llm,
+            settings.data_dir,
         ),
     )
 

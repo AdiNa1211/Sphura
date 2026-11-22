@@ -2,6 +2,14 @@
 
 The full development history of SPHURA, phase by phase. This was the project README until the docs were reorganised; the new [README](README.md) covers setup and usage.
 
+## 2026-11-22
+
+- **AI Highlight Reel:** a new mode that turns many clips or recordings into one edited highlight video. Import (picker, paste, drag and drop), per-video analysis with progress, cross-video ranking with duplicate-event removal, AI or rule-based ordering (hook first, best moment last), review and arrange, beat-snapped cuts, smart transitions, music ducking, loudness normalisation, captions, hook text, watermark/logo and intro/outro, five platform presets, and an export with title, description, chapters, hashtags and thumbnail. See section 19 of the architecture doc.
+- **Timeline editor:** CapCut-style trimming (drag an edge outward to add footage, inward to cut) with filmstrips and a live frame preview; live playback of unsaved cuts straight from the recording; separate Video, Game audio and Music tracks with waveforms and beat marks; a Full recording view to add other moments or remove sections; scrubbing on the ruler and playhead; a labelled toolbar and a how-to guide; a warning before leaving with unsaved changes.
+- **Max length per style** is now a limit: Shorts keep their natural length up to it.
+- **New stream:** Browse button for the file path.
+- **Reliability:** music changes run in the background; a render whose video file is open is saved under a new name instead of failing; the Make Shorts panel no longer redraws itself and closes open dropdowns; the AI music server starts with the install's signed Python, so Windows Smart App Control no longer blocks it.
+
 ---
 
 # SPHURA

@@ -26,7 +26,8 @@ Development history: [CHANGELOG.md](CHANGELOG.md) · Technical design: [docs/ARC
 | **Context-matched effects** | Each moment is classified (finisher, clutch, explosion, death, funny, story, action) and gets effects to match, such as freeze-frames, letterbox bars or bigger flashes. |
 | **Smart reframing** | The 9:16 crop follows the action with a smoothed virtual camera, or switches to a full-frame layout over a blurred background. |
 | **Music** | Original music for every Short from a local AI model (ACE-Step 1.5) or SPHURA's built-in composer, or tracks from your own folder chosen by the AI. Cuts and the key hit land on the beat. |
-| **Timeline editor** | Trim and split cuts, add text anywhere (style, size, colour, position), switch effects on or off, toggle the caption bar, and preview before exporting. |
+| **AI Highlight Reel** | Drop in many clips or recordings; SPHURA analyses each one, ranks every moment on one scale, drops repeats of the same event and edits one highlight video (hook first, best moment last, cuts on the beat) for Shorts, Reels, TikTok, 16:9 or 1:1, with title, description, chapters, hashtags and a thumbnail. You review and reorder before it renders. |
+| **Timeline editor** | CapCut-style parts with filmstrips: drag an edge outward to add footage, inward to cut, with a live preview. Separate Video, Game audio and Music tracks, a Full recording view to add other moments, text anywhere (style, size, colour, position), effect switches and the caption bar. |
 | **Max length per style** | A limit, not a target: each Short keeps the length its moment needs, up to the limit you set. |
 | **Copy for posting** | AI-written title, description and hashtags, checked against made-up claims, saved as a `.txt` next to each video. |
 | **Taste learning** | 👍 / 👎 on moments and Shorts, and future rankings learn what you like. |
@@ -135,6 +136,8 @@ Then:
 3. **Make Shorts:** choose styles, the game name, how many moments and a max length per style, then press **Make Shorts**.
 4. **Shorts:** preview, copy the title and description, change music, or open the editor.
 
+**Highlight reel:** press **★ Highlight reel → + New highlight reel**, drop in your clips (or **Add videos…**), press **Find highlights**, review and arrange the picks, choose a platform preset, then **Generate video**.
+
 **After a stream (Windows):** double-click **`After Stream.bat`** to process your newest OBS recording into Shorts, or drag a video onto it.
 
 **Command line:** the full pipeline is also available in the terminal:
@@ -172,9 +175,11 @@ Sphura/
 │   └── src/sphura/
 │       ├── domain/             # entities: projects, clips (edit lists), jobs — no I/O
 │       ├── ports/              # interfaces the core depends on
-│       ├── application/        # use cases: ingest, analyse, clips/Shorts, downloads, library
+│       ├── application/        # use cases: ingest, analyse, clips/Shorts, highlight reels,
+│       │                       #   downloads, library
 │       ├── pipeline/           # analysis and editing logic: signals, candidates, AI judge,
-│       │                       #   ranking, styles, effects, reframing, music, copywriting
+│       │                       #   ranking, styles, effects, reframing, music, copywriting,
+│       │                       #   reel selection (reel.py)
 │       ├── infrastructure/     # adapters: FFmpeg, Whisper, Ollama/Anthropic, ACE-Step,
 │       │                       #   yt-dlp, SQLite (+ migrations), job queue, storage
 │       ├── api/                # FastAPI app and the browser UI's endpoints
@@ -213,12 +218,15 @@ Everything works with no configuration. These environment variables change the d
 
 Older `SPHURI_*` and `CLIPFORGE_*` names are still read.
 
+**Highlight reels.** Branding for reels (watermark text, logo, intro and outro clips) is set on the reel's *Customize & arrange* step and saved in `SPHURA_DATA_DIR/reel_branding.json`.
+
 **Where files go**
 
 | What | Where |
 |---|---|
 | Shorts, each with a `.txt` of title, description and hashtags | `~/Videos/SPHURA/<date> <stream name>/<style>` |
 | Downloads | `~/Videos/SPHURA/Downloads` (changeable in Downloads → Settings) |
+| Highlight reels, with a `.txt` (title, description, chapters, hashtags) and a thumbnail | `~/Videos/SPHURA/<date> Highlight reel - <name>` |
 | Database, analysis, Whisper models, yt-dlp/Deno | `SPHURA_DATA_DIR` |
 | AI music model (installed from the **Music** page) | `ai/ace-step` inside the repository folder |
 

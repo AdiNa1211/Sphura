@@ -394,3 +394,26 @@ def test_volume_and_markers_save_and_a_changed_cut_from_an_older_page_resets_vol
         c.id, [[s.start_s, s.end_s] for s in c.segments[:2]], None, None, plan=False
     )
     assert gow_clip(engine, "cc56bf").segment_audio == []  # can't tell which part kept which volume
+
+
+@needs_data
+def test_a_preview_saved_aside_while_the_old_one_played_is_the_one_served(engine: Any) -> None:
+    c = gow_clip(engine, "d3eef8")
+    drafts = engine.clips.draft_path(c.id).parent
+    drafts.mkdir(parents=True, exist_ok=True)
+    (drafts / f"{c.id}.mp4").write_bytes(b"old")  # still open in the editor's player
+    (drafts / f"{c.id}.ab12cd34.mp4").write_bytes(b"new")
+    (drafts / f"{c.id}.json").write_text(
+        json.dumps({"key": draft_key(c), "file": f"{c.id}.ab12cd34.mp4"})
+    )
+    assert engine.clips.draft_path(c.id).name == f"{c.id}.ab12cd34.mp4"
+    assert engine.clips.editor_state(c.id)["draft_fresh"]
+
+
+@needs_data
+def test_undoing_a_speed_removal_brings_it_back_for_good(engine: Any) -> None:
+    c = gow_clip(engine, "cc56bf")
+    pieces = speed_of(c)
+    engine.clips.apply_edit(c.id, None, None, None, plan=False, speed=pieces[1:])
+    engine.clips.apply_edit(c.id, None, None, None, plan=False, speed=pieces)  # undo
+    assert not gow_clip(engine, "cc56bf").publish.get("speed_removed")

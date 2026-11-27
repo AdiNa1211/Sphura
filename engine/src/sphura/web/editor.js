@@ -1435,7 +1435,8 @@ async function edRender(kind, quiet) {
       await new Promise(res => setTimeout(res, 1000));
       const j = await api(`/v1/jobs/${r.job_id}`);
       if (!$("#edstatus")) return;
-      st.innerHTML = `<span class="spin"></span> ${kind === "draft" ? "Rendering preview" : "Exporting"} ${Math.round((j.progress || 0) * 100)}%`;
+      st.innerHTML = `<span class="spin"></span> ${j.stage === "reframe" ? "Framing the camera for the new cut (takes a while after cut changes)…"
+        : `${kind === "draft" ? "Rendering preview" : "Exporting"} ${Math.round((j.progress || 0) * 100)}%`}`;
       if (j.status === "succeeded") break;
       if (j.status === "failed" || j.status === "cancelled") throw new Error(j.error || "render failed");
     }

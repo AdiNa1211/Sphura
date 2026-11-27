@@ -728,14 +728,21 @@ class ClipService:
             "markers": list(clip.publish.get("markers") or []),
         }  # fmt: skip
 
-    def _draft_key(self, clip: Clip) -> str | None:
-        path = self._storage.artifact_path(clip.project_id, "drafts", f"{clip.id}.json")
-        if not path.with_suffix(".mp4").is_file():
-            return None
+    def _draft_info(self, clip: Clip) -> tuple[Path, str | None]:
+        """The latest preview file and the edit it shows. A preview that was playing while
+        the next one finished is saved under another name; the sidecar says which is newest."""
+        side = self._storage.artifact_path(clip.project_id, "drafts", f"{clip.id}.json")
         try:
-            return str(json.loads(path.read_text(encoding="utf-8"))["key"])
-        except (OSError, ValueError, KeyError, TypeError):
-            return None
+            info = json.loads(side.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            info = {}
+        name = info.get("file") if isinstance(info, dict) else None
+        path = side.with_name(str(name)) if name else side.with_suffix(".mp4")
+        key = info.get("key") if isinstance(info, dict) and path.is_file() else None
+        return path, None if key is None else str(key)
+
+    def _draft_key(self, clip: Clip) -> str | None:
+        return self._draft_info(clip)[1]
 
     def editor_audio(
         self, clip_id: str, segments: list[list[float]] | None = None
@@ -959,6 +966,8 @@ class ClipService:
             ):
                 removed.append(src)
         clip.effects = [e for e in clip.effects if e["type"] not in SPEED_TYPES] + new
+        back = [_src_at(clip, e["start_s"]) for e in new if "owner" not in e]  # e.g. an undo
+        removed = [r for r in removed if all(b is None or abs(b - r) >= 0.3 for b in back)]
         clip.publish = {**clip.publish, "speed_removed": removed[-50:]}
         return True
 
@@ -1031,8 +1040,7 @@ class ClipService:
         )  # fmt: skip
 
     def draft_path(self, clip_id: str) -> Path:
-        clip = self._get(clip_id)
-        return self._storage.artifact_path(clip.project_id, "drafts", f"{clip.id}.mp4")
+        return self._draft_info(self._get(clip_id))[0]
 
     def frame_slot(self, clip_id: str, t: float) -> tuple[Path, str, float]:
         """Cache file, source and snapped time of a filmstrip frame (every 0.5 s of the
@@ -1190,8 +1198,14 @@ class RenderHandler:
                 draft, lambda f: ctx.report("render", f, clip.title),
                 draft=not ctx.job.payload.get("full"),
             )  # fmt: skip
-            # Which edit this draft shows: the editor treats an older draft as stale
-            draft.with_suffix(".json").write_text(json.dumps({"key": draft_key(clip)}))
+            # Which edit this draft shows (and which file): the editor treats older ones as stale
+            draft.with_suffix(".json").write_text(
+                json.dumps({"key": draft_key(clip), "file": done.path.name})
+            )
+            for prev in draft.parent.glob(f"{clip.id}*.mp4"):
+                if prev != done.path:
+                    with contextlib.suppress(OSError):  # still open in a player: next time
+                        prev.unlink()
             return {"clip_id": clip.id, "path": str(done.path), "draft": True,
                     "duration_s": round(done.duration_s, 2)}  # fmt: skip
 

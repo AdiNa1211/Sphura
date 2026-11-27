@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import BinaryIO
 
-_ARTIFACT_KINDS = ("proxy", "analysis", "renders", "drafts", "tmp", "thumbs", "music")
+_ARTIFACT_KINDS = ("proxy", "analysis", "renders", "drafts", "tmp", "thumbs", "music", "voice")
 
 
 class LocalSourceReader:

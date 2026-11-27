@@ -11,6 +11,7 @@ import subprocess
 import sys
 import threading
 from dataclasses import asdict
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -38,6 +39,18 @@ def engine_of(request: Request) -> LocalEngine:
 
 
 Engine = Annotated[LocalEngine, Depends(engine_of)]
+
+
+class LoreIndexRequest(BaseModel):
+    keys: list[str] = Field(default_factory=list)  # "p:<project id>" or "d:<download id>"
+
+
+class LoreCancel(BaseModel):
+    project_id: str
+
+
+class LoreDiscover(BaseModel):
+    asset_ids: list[str] | None = None
 
 
 class ShortsRequest(BaseModel):
@@ -229,6 +242,307 @@ def build_router(dependencies: list[Any]) -> APIRouter:
         threading.Thread(target=work, daemon=True, name=f"shorts-{project_id[:8]}").start()
         return state
 
+    @r.get("/v1/projects/{project_id}/trending", dependencies=dependencies)
+    def trending_plan(project_id: str, engine: Engine, game: str | None = None) -> dict[str, Any]:
+        return engine.trending.plan(project_id, game)
+
+    @r.post("/v1/projects/{project_id}/trending", dependencies=dependencies)
+    def trending_make(project_id: str, body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        picks = [p for p in body.get("picks", []) if isinstance(p, dict)]
+        game = str(body.get("game") or "")
+        if not picks:
+            raise HTTPException(400, "choose at least one moment")
+        if batches.get(project_id, {}).get("running"):
+            raise HTTPException(409, "already preparing Shorts for this stream")
+        out = shorts_folder(engine.queries.project(project_id).name) / "trending"
+        state: dict[str, Any] = {"running": True, "step": "starting", "error": None,
+                                 "folder": str(out), "jobs": 0}  # fmt: skip
+        batches[project_id] = state
+
+        def work() -> None:
+            try:
+                state["step"] = "writing titles and planning edits (trending style)"
+                voices = {p["candidate_id"]: p.get("voiceover") for p in picks}
+                for fmt, clips in engine.trending.make(project_id, game, picks):
+                    for c in clips:
+                        vo = voices.get(c.candidate_id or "")
+                        if vo and vo.get("lines"):
+                            state["step"] = f"recording the voice-over ({fmt})"
+                            engine.voiceover.apply(c, str(vo.get("voice") or ""), vo["lines"])
+                    state["jobs"] += len(engine.clips.render(clips, out / fmt))
+                state["step"] = "rendering"
+            except SphuraError as e:
+                state["error"] = str(e)
+            except Exception as e:
+                state["error"] = f"{type(e).__name__}: {e}"
+            finally:
+                state["running"] = False
+
+        threading.Thread(target=work, daemon=True, name=f"trend-{project_id[:8]}").start()
+        return state
+
+    @r.get("/v1/projects/{project_id}/plans", dependencies=dependencies)
+    def short_plans(project_id: str, engine: Engine) -> dict[str, Any]:
+        from sphura.pipeline.planner import FORMATS, VARIANTS
+        from sphura.pipeline.research import appeal
+        from sphura.pipeline.trending import detect_game
+
+        name = engine.queries.project(project_id).name
+        game = detect_game(name) or ""
+        moments = {r.candidate.id: r.candidate for r in engine.queries.highlights(project_id)}
+        made: dict[str, dict[str, str]] = {}
+        for c, _path in engine.queries.clips(project_id):
+            p = c.publish.get("plan") or {}
+            if p.get("story"):
+                made.setdefault(p["story"], {})[p["variant"]] = c.id
+        out: list[dict[str, Any]] = []
+        vids, hot = _research(engine, game)
+        for p in engine.clips.plans(project_id, game):
+            f = FORMATS[p.format]
+            words = [w.capitalize() for w in re.findall(r"[A-Za-z]{4,}", p.title)]
+            a = appeal(p.names, words, vids)
+            trending = sorted({n for n in p.names if n.split()[0].lower() in hot})
+            out.append({
+                "appeal": a, "trending": trending,
+                "rank": p.score + 2.0 * float(a["lift"]) + (1.0 if trending else 0.0),
+                "key": p.key, "format": p.format, "format_label": f.label,
+                "structure": f.structure, "title": p.title, "reason": p.reason,
+                "score": p.score, "names": p.names,
+                "variants": [{"id": v, "label": VARIANTS[v].label, "about": VARIANTS[v].about}
+                             for v in p.variants],
+                "moments": [{"id": m, "start_s": moments[m].range.start_s,
+                             "title": _title(moments[m])} for m in p.moments if m in moments],
+                "made": made.get(p.key, {}),
+            })  # fmt: skip
+        out.sort(key=lambda x: -x["rank"])
+        status = engine.research.status()
+        return {
+            "game": game,
+            "plans": out,
+            "research_updated": status.get("last_updated"),
+            "research_refreshing": _keep_fresh(engine, status),
+        }
+
+    @r.post("/v1/projects/{project_id}/plans", dependencies=dependencies)
+    def make_plans(project_id: str, body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        from sphura.pipeline.trending import detect_game
+
+        picks = [p for p in body.get("picks", []) if isinstance(p, dict) and p.get("key")]
+        if not picks:
+            raise HTTPException(400, "choose at least one Short")
+        if batches.get(project_id, {}).get("running"):
+            raise HTTPException(409, "already preparing Shorts for this stream")
+        name = engine.queries.project(project_id).name
+        game = detect_game(name) or ""
+        game_name = str(body.get("game") or "") or None
+        out = shorts_folder(name) / "stories"
+        state: dict[str, Any] = {"running": True, "step": "starting", "error": None,
+                                 "folder": str(out), "jobs": 0}  # fmt: skip
+        batches[project_id] = state
+
+        titles = _top_titles(engine, game)
+
+        def work() -> None:
+            try:
+                plans = {p.key: p for p in engine.clips.plans(project_id, game)}
+                for i, pick in enumerate(picks, 1):
+                    plan = plans.get(str(pick["key"]))
+                    if plan is None:
+                        continue
+                    for v in [x for x in pick.get("variants", []) if x in plan.variants]:
+                        state["step"] = f"cutting Short {i}/{len(picks)}, version {v}"
+                        clip = engine.clips.make_plan(project_id, plan, v, game_name, titles)
+                        state["jobs"] += len(engine.clips.render([clip], out / plan.format))
+                state["step"] = "rendering"
+            except SphuraError as e:
+                state["error"] = str(e)
+            except Exception as e:
+                state["error"] = f"{type(e).__name__}: {e}"
+            finally:
+                state["running"] = False
+
+        threading.Thread(target=work, daemon=True, name=f"plan-{project_id[:8]}").start()
+        return state
+
+    @r.post("/v1/clips/{clip_id}/choose", dependencies=dependencies)
+    def choose_variant(clip_id: str, engine: Engine) -> dict[str, Any]:
+        """Marks this version as the one to post; its siblings stay, unmarked."""
+        clip = engine.clips.choose(clip_id)
+        return {"chosen": clip.id}
+
+    @r.get("/v1/voice", dependencies=dependencies)
+    def voice_status(engine: Engine) -> dict[str, Any]:
+        return engine.voiceover.status()
+
+    @r.post("/v1/voice/install", dependencies=dependencies)
+    def voice_install(body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        return engine.voiceover.install(str(body.get("engine") or "kokoro"))
+
+    @r.post("/v1/voice/preview", dependencies=dependencies)
+    def voice_preview(body: dict[str, Any], engine: Engine) -> FileResponse:
+        text = str(body.get("text") or "").strip()[:600]
+        if not text:
+            raise HTTPException(400, "nothing to say")
+        out = engine.voiceover.cached(text, str(body.get("voice") or ""), *_voice_args(body))
+        return FileResponse(out, media_type="audio/wav", headers={"Cache-Control": "no-store"})
+
+    @r.post("/v1/voice/plan", dependencies=dependencies)
+    def voice_plan(body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        """What the voice would read, for debugging and the preview panel."""
+        text = str(body.get("text") or "").strip()[:600]
+        return engine.voiceover.plan(text, str(body.get("voice") or ""), *_voice_args(body))
+
+    @r.post("/v1/voice/warm", dependencies=dependencies)
+    def voice_warm(body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        items = [t if isinstance(t, dict) else str(t)[:400] for t in body.get("texts") or []][:20]
+        game = str(body.get("game") or "") or None
+        return {"queued": engine.voiceover.warm(items, str(body.get("voice") or ""), game)}
+
+    @r.get("/v1/voice/intel", dependencies=dependencies)
+    def voice_intel(engine: Engine) -> dict[str, Any]:
+        from sphura.pipeline import voice_intel as VI
+
+        return {
+            "settings": engine.voice_intel.settings(),
+            "games": engine.voice_intel.games(),
+            "personalities": [asdict(p) for p in VI.PERSONALITIES.values()],
+            "moods": list(VI.MOODS),
+            "scenes": VI.SCENES,
+            "engines": VI.ENGINES,
+            "kinds": list(VI.KINDS),
+        }
+
+    @r.put("/v1/voice/intel/settings", dependencies=dependencies)
+    def voice_intel_settings(body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        return engine.voice_intel.save_settings(body)
+
+    @r.post("/v1/voice/intel/games", dependencies=dependencies)
+    def voice_intel_new_game(body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        return engine.voice_intel.create_game(str(body.get("name") or ""))
+
+    @r.get("/v1/voice/intel/{game}", dependencies=dependencies)
+    def voice_intel_game(game: str, engine: Engine) -> dict[str, Any]:
+        return {
+            "profile": engine.voice_intel.profile(game),
+            "terms": engine.voice_intel.terms(game),
+        }
+
+    @r.put("/v1/voice/intel/{game}", dependencies=dependencies)
+    def voice_intel_profile(game: str, body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        return engine.voice_intel.save_profile(game, body)
+
+    @r.post("/v1/voice/intel/{game}/scan", dependencies=dependencies)
+    def voice_intel_scan(game: str, engine: Engine) -> dict[str, Any]:
+        return engine.voice_intel.scan(game)
+
+    @r.post("/v1/voice/intel/{game}/terms", dependencies=dependencies)
+    def voice_intel_term(game: str, body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        return engine.voice_intel.upsert_term(game, body)
+
+    @r.post("/v1/voice/intel/{game}/terms/{term_id}/verify", dependencies=dependencies)
+    def voice_intel_verify(game: str, term_id: str, engine: Engine) -> dict[str, Any]:
+        return engine.voice_intel.verify(game, term_id)
+
+    @r.delete("/v1/voice/intel/{game}/terms/{term_id}", dependencies=dependencies)
+    def voice_intel_delete(game: str, term_id: str, engine: Engine) -> dict[str, bool]:
+        engine.voice_intel.delete_term(game, term_id)
+        return {"ok": True}
+
+    @r.post("/v1/projects/{project_id}/trending/scripts", dependencies=dependencies)
+    def trending_scripts(project_id: str, body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        from sphura.pipeline.trending import formats_for
+
+        game, voice = str(body.get("game") or ""), str(body.get("voice") or "")
+        fmts = {f.id: f for f in formats_for(game)}
+        out = {}
+        for p in body.get("picks", []):
+            f = fmts.get(p.get("format"))
+            if f is None:
+                continue
+            out[p["candidate_id"]] = engine.voiceover.script_for_moment(
+                project_id, p["candidate_id"], game, voice, f.length_s, f.label
+            )
+        return out
+
+    @r.get("/v1/clips/{clip_id}/voiceover", dependencies=dependencies)
+    def clip_voiceover(clip_id: str, engine: Engine) -> dict[str, Any]:
+        clip = engine.voiceover.get(clip_id)
+        return next((e for e in clip.effects if e["type"] == "voiceover"), {})
+
+    @r.post("/v1/clips/{clip_id}/voiceover/script", dependencies=dependencies)
+    def clip_voiceover_script(clip_id: str, body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        return engine.voiceover.script_for_clip(clip_id, str(body.get("voice") or ""))
+
+    @r.put("/v1/clips/{clip_id}/voiceover", dependencies=dependencies)
+    def clip_voiceover_apply(clip_id: str, body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        clip = engine.voiceover.get(clip_id)
+        effect = engine.voiceover.apply(clip, str(body.get("voice") or ""), body.get("lines") or [])
+        job = engine.clips.rerender(clip_id)
+        _report_later(engine, clip_id)
+        return {"voiceover": effect, "job_id": job.id if job else None}
+
+    @r.get("/v1/clips/{clip_id}/voiceover/report", dependencies=dependencies)
+    def clip_voiceover_report(
+        clip_id: str, engine: Engine, refresh: bool = False
+    ) -> dict[str, Any]:
+        return engine.voice_qa.clip_report(clip_id, refresh)
+
+    @r.post("/v1/clips/{clip_id}/voiceover/lines/{index}/regenerate", dependencies=dependencies)
+    def clip_voiceover_regenerate(clip_id: str, index: int, engine: Engine) -> dict[str, Any]:
+        """A new take of one line; the other lines keep their audio."""
+        effect = engine.voiceover.regenerate_line(engine.voiceover.get(clip_id), index)
+        job = engine.clips.rerender(clip_id)
+        return {"voiceover": effect, "job_id": job.id if job else None,
+                "report": engine.voice_qa.clip_report(clip_id, refresh=True)}  # fmt: skip
+
+    @r.get("/v1/voice/bench", dependencies=dependencies)
+    def voice_bench(engine: Engine) -> dict[str, Any]:
+        from sphura.pipeline.voice_bench import SCENES
+
+        return {"engines": engine.voice_bench.available(), "runs": engine.voice_bench.runs(),
+                "scenes": SCENES}  # fmt: skip
+
+    @r.post("/v1/voice/bench", dependencies=dependencies)
+    def voice_bench_start(body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        return engine.voice_bench.start([str(e) for e in body.get("engines") or []])
+
+    @r.get("/v1/voice/bench/{run_id}/{file}", dependencies=dependencies)
+    def voice_bench_audio(run_id: str, file: str, engine: Engine) -> FileResponse:
+        return FileResponse(engine.voice_bench.audio(run_id, file), media_type="audio/wav")
+
+    @r.post("/v1/voice/bench/{run_id}/rate", dependencies=dependencies)
+    def voice_bench_rate(run_id: str, body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        return engine.voice_bench.rate(
+            run_id, str(body.get("file") or ""), int(body.get("score") or 3)
+        )
+
+    @r.get("/v1/voice/qa", dependencies=dependencies)
+    def voice_qa_status(engine: Engine) -> dict[str, Any]:
+        return engine.voice_qa.status()
+
+    @r.post("/v1/voice/qa/line", dependencies=dependencies)
+    def voice_qa_line(body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        game, direction, overrides, _ = _voice_args(body)
+        text, voice = str(body.get("text") or "")[:600], str(body.get("voice") or "")
+        return engine.voice_qa.line_report(text, voice, game, direction, overrides)
+
+    @r.post("/v1/voice/intel/{game}/terms/{term_id}/heard", dependencies=dependencies)
+    def voice_intel_heard(
+        game: str, term_id: str, body: dict[str, Any], engine: Engine
+    ) -> dict[str, Any]:
+        """False positive: recognition hears this when the name is said right."""
+        return engine.voice_qa.accept_heard(game, term_id, str(body.get("heard") or ""))
+
+    @r.get("/v1/voice/intel/{game}/variants", dependencies=dependencies)
+    def voice_intel_variants(game: str, name: str, engine: Engine) -> list[str]:
+        return engine.voice_qa.variants(game, name)
+
+    @r.delete("/v1/clips/{clip_id}/voiceover", dependencies=dependencies)
+    def clip_voiceover_remove(clip_id: str, engine: Engine) -> dict[str, Any]:
+        engine.voiceover.remove(engine.voiceover.get(clip_id))
+        job = engine.clips.rerender(clip_id)
+        return {"job_id": job.id if job else None}
+
     @r.get("/v1/projects/{project_id}/shorts", dependencies=dependencies)
     def shorts(project_id: str, engine: Engine) -> dict[str, Any]:
         items = []
@@ -244,6 +558,12 @@ def build_router(dependencies: list[Any]) -> APIRouter:
                     "aspect": clip.aspect.value,
                     "title": clip.title,
                     "publish": clip.publish,
+                    "trend": clip.publish.get("trend"),
+                    "plan": clip.publish.get("plan"),
+                    "chosen": bool(clip.publish.get("chosen")),
+                    "voiceover": bool(
+                        next((e for e in clip.effects if e["type"] == "voiceover"), None)
+                    ),
                     "text": _overlay_text(clip),
                     "music": {**_music_info(clip), "work": music_work.get(clip.id)},
                     "duration_s": round(clip.output_duration_s, 1),
@@ -290,6 +610,10 @@ def build_router(dependencies: list[Any]) -> APIRouter:
             raise HTTPException(400, "confirm that these are your videos or you have permission")
         return engine.downloads.add(body.items, body.quality, body.playlist_title)
 
+    @r.post("/v1/downloads/settings/choose-folder", dependencies=dependencies)
+    def choose_folder(engine: Engine) -> dict[str, Any]:
+        return {"folder": _choose_folder(engine.downloads.settings().folder)}
+
     @r.post("/v1/downloads/{download_id}/{action}", dependencies=dependencies)
     def download_action(download_id: str, action: str, engine: Engine) -> dict[str, Any]:
         dm = engine.downloads
@@ -331,10 +655,6 @@ def build_router(dependencies: list[Any]) -> APIRouter:
     def choose_file() -> dict[str, Any]:
         videos = Path.home() / "Videos"
         return {"path": _choose_video(str(videos if videos.is_dir() else Path.home()))}
-
-    @r.post("/v1/downloads/settings/choose-folder", dependencies=dependencies)
-    def choose_folder(engine: Engine) -> dict[str, Any]:
-        return {"folder": _choose_folder(engine.downloads.settings().folder)}
 
     @r.get("/v1/music", dependencies=dependencies)
     def music(engine: Engine) -> dict[str, Any]:
@@ -486,10 +806,11 @@ def build_router(dependencies: list[Any]) -> APIRouter:
         return {"ok": True}
 
     @r.post("/v1/open-folder", dependencies=dependencies)
-    def open_folder(body: dict[str, str]) -> dict[str, bool]:
+    def open_folder(body: dict[str, str], engine: Engine) -> dict[str, bool]:
         folder = Path(body.get("path", ""))
-        allowed = (Path.home() / "Videos" / "SPHURA").resolve()
-        if not folder.resolve().is_relative_to(allowed) or not folder.is_dir():
+        allowed = [(Path.home() / "Videos" / "SPHURA").resolve(),
+                   Path(engine.downloads.settings().folder).resolve()]  # fmt: skip
+        if not any(folder.resolve().is_relative_to(a) for a in allowed) or not folder.is_dir():
             raise HTTPException(400, "can only open SPHURA output folders")
         _reveal(folder)
         return {"ok": True}
@@ -507,6 +828,55 @@ def build_router(dependencies: list[Any]) -> APIRouter:
     @r.get("/v1/reels/hidden-projects", dependencies=dependencies)
     def reel_projects(engine: Engine) -> list[str]:
         return engine.reels.hidden_projects()
+
+    @r.get("/v1/lore", dependencies=dependencies)
+    def lore_overview(engine: Engine) -> dict[str, Any]:
+        return engine.lore.overview()
+
+    @r.get("/v1/lore/library", dependencies=dependencies)
+    def lore_library(engine: Engine) -> list[dict[str, Any]]:
+        return engine.lore.library()
+
+    @r.post("/v1/lore/index", dependencies=dependencies)
+    def lore_index(body: LoreIndexRequest, engine: Engine) -> list[dict[str, Any]]:
+        return engine.lore.index(body.keys)
+
+    @r.post("/v1/lore/index/cancel", dependencies=dependencies)
+    def lore_cancel(body: LoreCancel, engine: Engine) -> dict[str, bool]:
+        engine.lore.cancel(body.project_id)
+        return {"ok": True}
+
+    @r.get("/v1/lore/videos/{asset_id}/scenes", dependencies=dependencies)
+    def lore_scenes(asset_id: str, engine: Engine) -> list[dict[str, Any]]:
+        return engine.lore.scenes(asset_id)
+
+    @r.get("/v1/lore/videos/{asset_id}/source", dependencies=dependencies)
+    def lore_source(asset_id: str, engine: Engine) -> FileResponse:
+        return FileResponse(engine.lore.source(asset_id), media_type="video/mp4")
+
+    @r.get("/v1/lore/frame.jpg", dependencies=dependencies)
+    def lore_frame(asset: str, t: float, engine: Engine) -> FileResponse:
+        try:
+            path = engine.lore.frame(asset, round(t, 1))
+        except SphuraError:
+            raise
+        except Exception as e:  # past the end of the recording, unreadable file
+            raise HTTPException(404, "no frame there") from e
+        return FileResponse(
+            path, media_type="image/jpeg", headers={"Cache-Control": "max-age=604800"}
+        )
+
+    @r.get("/v1/lore/{game}/ideas", dependencies=dependencies)
+    def lore_ideas(game: str, engine: Engine) -> dict[str, Any]:
+        return engine.lore.ideas(game)
+
+    @r.post("/v1/lore/{game}/discover", dependencies=dependencies)
+    def lore_discover(game: str, body: LoreDiscover, engine: Engine) -> dict[str, Any]:
+        return engine.lore.discover(game, body.asset_ids)
+
+    @r.get("/v1/lore/{game}/sources", dependencies=dependencies)
+    def lore_sources(game: str, engine: Engine) -> dict[str, Any]:
+        return engine.lore.sources(game)
 
     @r.get("/v1/research", dependencies=dependencies)
     def research_overview(engine: Engine) -> dict[str, Any]:
@@ -667,6 +1037,29 @@ def _length(v: float | None) -> float | None:
     return float(v)
 
 
+def _report_later(engine: Any, clip_id: str) -> None:
+    """The quality report needs the new audio and speech recognition: build it off-request."""
+
+    def run() -> None:
+        try:
+            engine.voice_qa.clip_report(clip_id, refresh=True)
+        except Exception:
+            log.warning("voice-over report for %s failed", clip_id, exc_info=True)
+
+    threading.Thread(target=run, daemon=True, name=f"voice-report-{clip_id[:8]}").start()
+
+
+def _voice_args(body: dict[str, Any]) -> tuple[Any, ...]:
+    """(game, direction, overrides, respell) from a preview request."""
+    game = str(body.get("game") or "") or None
+    direction = body.get("direction") if isinstance(body.get("direction"), dict) else None
+    keys = ("personality", "speed", "intensity", "pauses", "emotion", "pronunciation", "optimize",
+            "take")  # fmt: skip
+    overrides = {k: body[k] for k in keys if body.get(k) is not None} or None
+    respell = body.get("respell") if isinstance(body.get("respell"), dict) else None
+    return game, direction, overrides, respell
+
+
 def _youtube_url(url: str) -> str:
     u = url.strip()
     if not re.match(r"^https?://([\w-]+\.)?(youtube\.com|youtu\.be)/", u, re.IGNORECASE):
@@ -761,7 +1154,103 @@ def _reveal(path: Path) -> None:
             subprocess.Popen(["explorer", "/select,", str(path)])
         else:
             os.startfile(path)  # type: ignore[attr-defined]
+        folder = path.parent if path.is_file() else path
+        threading.Thread(target=_raise_explorer, args=(folder,), daemon=True).start()
     elif sys.platform == "darwin":
         subprocess.Popen(["open", "-R" if path.is_file() else "", str(path)])
     else:
         subprocess.Popen(["xdg-open", str(path.parent if path.is_file() else path)])
+
+
+def _raise_explorer(folder: Path, wait_s: float = 4.0) -> None:
+    """Windows opens Explorer behind the browser (SPHURA runs in the background), so find
+    that window and bring it to the front. A tap of Alt lifts Windows' focus-stealing lock."""
+    import ctypes
+    import time
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+    names = {folder.name.lower(), str(folder).lower().rstrip("\\")}
+    enum_proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)  # type: ignore[attr-defined]
+
+    def find() -> int | None:
+        found: list[int] = []
+
+        def check(hwnd: int, _: int) -> bool:
+            cls = ctypes.create_unicode_buffer(64)
+            user32.GetClassNameW(hwnd, cls, 64)
+            if cls.value in ("CabinetWClass", "ExploreWClass") and user32.IsWindowVisible(hwnd):
+                title = ctypes.create_unicode_buffer(512)
+                user32.GetWindowTextW(hwnd, title, 512)
+                if title.value.lower().rstrip("\\") in names:
+                    found.append(hwnd)
+                    return False
+            return True
+
+        user32.EnumWindows(enum_proc(check), 0)
+        return found[0] if found else None
+
+    end = time.monotonic() + wait_s
+    while time.monotonic() < end:
+        hwnd = find()
+        if hwnd:
+            try:
+                if user32.IsIconic(hwnd):
+                    user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                user32.keybd_event(0x12, 0, 0, 0)  # Alt down/up
+                user32.keybd_event(0x12, 0, 2, 0)
+                user32.SetForegroundWindow(hwnd)
+                user32.BringWindowToTop(hwnd)
+            except Exception:
+                log.debug("couldn't bring Explorer to the front", exc_info=True)
+            return
+        time.sleep(0.15)
+
+
+def _title(c: Any) -> str:
+    return str(c.judgement.title) if c.judgement else ""
+
+
+def _top_titles(engine: Any, game: str, n: int = 15) -> str:
+    """Titles of the most-viewed researched Shorts of this game, as examples for ours."""
+    try:
+        vids = engine.research.videos(game) if game else []
+    except Exception:
+        return ""
+    top = sorted(vids, key=lambda v: -(v.get("metrics") or {}).get("views", 0))[:n]
+    if not top:
+        return ""
+    return "Titles of the most-viewed Shorts of this game (match their voice, not words):\n" + (
+        "\n".join(f"- {v['title']}" for v in top)
+    )
+
+
+def _research(engine: Any, game: str) -> tuple[list[dict[str, Any]], set[str]]:
+    """Researched Shorts of the game, and the words in titles trending right now."""
+    try:
+        vids = engine.research.videos(game) if game else []
+    except Exception:
+        return [], set()
+    hot = {w.lower() for v in vids if "trending" in (v.get("categories") or [])
+           for w in re.findall(r"[A-Za-z]{4,}", v.get("title", ""))}  # fmt: skip
+    return vids, hot
+
+
+RESEARCH_MAX_AGE_DAYS = 3  # what's trending moves fast; a refresh costs ~2K of 10K daily units
+
+
+def _keep_fresh(engine: Any, status: dict[str, Any]) -> bool:
+    """Starts a background research refresh when the data is a few days old; True while one runs."""
+    last = status.get("last_updated")
+    if status.get("running"):
+        return True
+    if not (status.get("key") or {}).get("set"):
+        return False
+    try:
+        age = (datetime.now(UTC) - datetime.fromisoformat(str(last))).days if last else 99
+        if age >= RESEARCH_MAX_AGE_DAYS:
+            engine.research.refresh()
+            return True
+    except Exception:  # never block planning on research
+        log.warning("couldn't refresh the Shorts research", exc_info=True)
+    return False

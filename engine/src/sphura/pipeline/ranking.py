@@ -25,8 +25,8 @@ MODE_BONUS: dict[EditingMode, dict[HighlightCategory, float]] = {
 _NEARBY_S = 90.0
 
 
-_TOP_SHARE = 0.2
-_STRONG_SHARE = 0.4
+_TOP_SHARE = 0.15  # fewer, better: only the clear standouts are recommended
+_STRONG_SHARE = 0.25
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,19 +58,14 @@ def assign_tiers(
         assert j is not None
         kept = bool(taste and taste.direct.get(c.id))
         if "routine" in j.tags and not kept:
-            # The AI itself called it ordinary: never worth a top slot
-            tops, strongs = n_top, n_strong
-            continue
-        if tops < n_top and j.quality >= 7 and j.standalone:
+            continue  # the AI itself called it ordinary: never recommended
+        # TOP needs a payoff a viewer can see, or a scene that carries weight on its own
+        if tops < n_top and j.quality >= 7 and j.standalone and (j.payoff_seen or j.emotion >= 7):
             tiers[c.id] = HighlightTier.TOP
             tops += 1
         elif strongs < n_strong and j.quality >= 6:
             tiers[c.id] = HighlightTier.STRONG
             strongs += 1
-            tops = n_top  # once STRONG starts, nothing below it is TOP
-        # else stays MAYBE; later items can't climb above an earlier MAYBE
-        else:
-            tops, strongs = n_top, n_strong
     return tiers
 
 
@@ -126,6 +121,13 @@ def candidate_score(
         s *= 0.5
     if not j.standalone:
         s -= 0.08
+    # Moment database v2: a scene that matters can beat a louder routine fight
+    if j.emotion > 5:
+        s += 0.04 * (j.emotion - 5) / 5
+    if j.payoff_seen:
+        s += 0.04
+    if j.visual in ("dark", "blurry"):
+        s -= 0.05
     if taste is not None:
         s += taste.shift(c)  # learned from the user's own keep/reject ratings
     return s
@@ -169,5 +171,7 @@ def rank(
     )
     # Rank everything first so tiers reflect the whole video, then cut to the limit
     tiers = assign_tiers([c for c, _ in picked], taste)
+    order = {HighlightTier.TOP: 0, HighlightTier.STRONG: 1, HighlightTier.MAYBE: 2}
+    picked.sort(key=lambda cs: order.get(tiers[cs[0].id], 3) if cs[0].id in tiers else 3)
     ranked = [RankedHighlight(i + 1, c, s, tiers.get(c.id)) for i, (c, s) in enumerate(picked)]
     return ranked[:limit] if limit is not None else ranked

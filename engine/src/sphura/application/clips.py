@@ -42,6 +42,17 @@ from sphura.pipeline.effects import _anchor as effects_anchor
 from sphura.pipeline.fx_context import LABELS, TOGGLES, classify, filter_off
 from sphura.pipeline.music_picker import library_key, pick_music
 from sphura.pipeline.music_prompt import write_music_prompt
+from sphura.pipeline.planner import FORMATS as PLAN_FORMATS
+from sphura.pipeline.planner import (
+    PLAN_VERSION,
+    VARIANTS,
+    Plan,
+    beat_plans,
+    budget,
+    subtitle_lines,
+    tune_music,
+)
+from sphura.pipeline.planner import cut as cut_plan
 from sphura.pipeline.reframe import plan_reframe
 from sphura.pipeline.score import MOODS, ScorePlan, base_bpm, compose, fit_bpm, mood_for
 from sphura.pipeline.score import write_wav as write_score
@@ -124,11 +135,15 @@ class ClipService:
         game: str | None = None,
         length_s: float | None = None,
         caption_bar: bool | None = None,
+        only: list[str] | None = None,
+        hints: dict[str, dict[str, Any]] | None = None,
     ) -> list[Clip]:
         """Edit lists for up to `top` moments worth posting (TOP/STRONG tiers; or any, with
-        include_maybe). Existing clips for the same moment are kept, so edits survive."""
+        include_maybe). Existing clips for the same moment are kept, so edits survive.
+        `only`: exactly these moments, in this order. `hints`: per moment copy guidance."""
         everything = self._queries.highlights(project_id, mode)
         self._clips.delete_except(project_id, {r.candidate.id for r in everything})
+        hints = hints or {}
         reviewed = any(r.tier is not None for r in everything)
         taste = self._queries.taste()
         worthy = [
@@ -145,6 +160,9 @@ class ClipService:
             if FINALE in r.candidate.drivers
             and r.candidate.judgement is not None and r.candidate.judgement.is_highlight
         ]  # fmt: skip
+        if only is not None:
+            by_id = {r.candidate.id: r for r in everything}
+            ranked = [by_id[c] for c in only if c in by_id]
         tl = self._optional(self._queries.signals, project_id)
         transcript = self._optional(self._queries.transcript, project_id)
         tracks = self._music() if effects else []
@@ -152,7 +170,8 @@ class ClipService:
         aspect = style_aspect(style, aspect)
         for r in ranked:
             # One clip per (moment, style): switching styles never overwrites another's edit
-            clip = self._clips.find_by_candidate(r.candidate.id, style) or build_clip(
+            fmt = ((hints.get(r.candidate.id) or {}).get("trend") or {}).get("format")
+            clip = self._clips.find_by_candidate(r.candidate.id, style, fmt) or build_clip(
                 r, tl, transcript
             )
             clip.rank = r.rank
@@ -182,8 +201,14 @@ class ClipService:
                 clip.overlays, clip.effects, clip.crop_path = base.overlays, [], []
                 if new_style:
                     clip.publish = {}
-            stale = clip.publish.get("version") != COPY_VERSION or (
-                (clip.publish.get("game") or None) != game
+            hint = hints.get(r.candidate.id) or {}
+            trend = hint.get("trend")
+            if trend and not clip.publish.get("trend"):
+                clip.publish = {}  # new format Short: its own copy, not the plain one's
+            stale = (
+                clip.publish.get("version") != COPY_VERSION
+                or (clip.publish.get("game") or None) != game
+                or (trend or {}).get("format") != (clip.publish.get("trend") or {}).get("format")
             )
             if not clip.publish.get("edited") and (stale or not clip.publish):
                 clip.publish = write_copy(
@@ -192,7 +217,16 @@ class ClipService:
                     game,
                     self._frames(clip, r.candidate.peak_s),
                     _dialogue(transcript, clip),
+                    hint.get("copy"),
                 )
+                if trend:
+                    clip.publish["trend"] = trend
+                    extra = [
+                        h for h in hint.get("hashtags", []) if h not in clip.publish["hashtags"]
+                    ]
+                    clip.publish["hashtags"] = " ".join(
+                        clip.publish["hashtags"].split()[:5] + extra[:3]
+                    )
                 self._caption(clip)
             clip.publish = {**clip.publish, "length_s": length_s, "cut_version": CUT_VERSION}
             if clip.aspect != aspect:
@@ -213,6 +247,112 @@ class ClipService:
             self._clips.save(clip)
             out.append(clip)
         return out
+
+    def plans(self, project_id: str, game: str) -> list[Plan]:
+        """Proposed Shorts: the best stories and standout moments, each with a format."""
+        moments = [r.candidate for r in self._queries.highlights(project_id)]
+        tl = self._optional(self._queries.signals, project_id)
+        transcript = self._optional(self._queries.transcript, project_id)
+        return beat_plans(moments, transcript, tl, game)
+
+    def make_plan(
+        self, project_id: str, plan: Plan, variant: str, game: str | None, titles: str = ""
+    ) -> Clip:
+        """One variant of a planned Short: cut from the plan's moments, then effects,
+        music and captions decided by the variant (see pipeline.planner)."""
+        v = VARIANTS[variant]
+        ranked = {r.candidate.id: r for r in self._queries.highlights(project_id)}
+        moments = {m: ranked[m].candidate for m in plan.moments if m in ranked}
+        if not moments:
+            raise NotFoundError("the moments of this Short are gone; re-run the analysis")
+        first = ranked[next(m for m in plan.moments if m in moments)]
+        tl = self._optional(self._queries.signals, project_id)
+        transcript = self._optional(self._queries.transcript, project_id)
+        c = cut_plan(plan, variant, moments, tl, transcript)
+        key = f"{plan.key}:{variant}"
+        old = self._clips.find_by_candidate(first.candidate.id, None, None, key)
+        clip = Clip(
+            project_id=project_id,
+            asset_id=first.candidate.asset_id,
+            title=plan.title,
+            segments=c.segments,
+            aspect=AspectRatio.VERTICAL,
+            layout="crop",
+            style=v.style,
+            candidate_id=first.candidate.id,
+            rank=first.rank,
+        )
+        if old is not None:
+            clip.id = old.id
+        # Copy follows the payoff moment: it's what the Short builds to
+        inside = [m for m in moments.values() if m.range.start_s <= c.key_s <= m.range.end_s]
+        judgement = (inside or list(moments.values()))[-1].judgement
+        fmt = PLAN_FORMATS[plan.format]
+        hint = (
+            f"This Short is one {plan.kind or fmt.label} beat. The title is a take on the "
+            "moment, the way the most-viewed Shorts of this game title theirs, not a "
+            "description of it. Name who is on screen when known. Never say 'the player'. "
+            "Don't give away the payoff in the hook." + (f"\n{titles}" if titles else "")
+        )
+        if old is not None and old.publish.get("edited"):
+            clip.publish = dict(old.publish)
+        else:
+            clip.publish = write_copy(self._llm, judgement, game, self._frames(clip, c.key_s),
+                                      _dialogue(transcript, clip), hint)  # fmt: skip
+        read = [x for m in moments.values() if m.judgement for x in m.judgement.dialogue]
+        clip.publish = {
+            **clip.publish,
+            "plan": {"key": key, "story": plan.key, "variant": variant, "label": v.label,
+                     "format": plan.format, "format_label": fmt.label, "reason": plan.reason,
+                     "about": v.about, "structure": c.structure, "version": PLAN_VERSION},
+            "music": {"choice": "none"} if v.music == "none" else
+            (old.publish.get("music") if old else None) or {"choice": "auto"},
+        }  # fmt: skip
+        self._ctx = (judgement, transcript)
+        wav = self._wav(clip)
+        if variant == "C":
+            clip.effects = [{"type": "style", "version": STYLE_VERSION}]
+        else:
+            self._plan(clip, c.key_s, tl, wav)
+        clip.effects = budget(clip.effects, variant, judgement)
+        if old is not None:  # an approved narration survives a re-cut
+            clip.effects += [e for e in old.effects if e["type"] == "voiceover"]
+        tracks = self._music() if v.music != "none" else []
+        self._apply_music(clip, tracks)
+        clip.audio.game_gain = 1.0  # the game (and its dialogue) always comes through
+        # After music: syncing cuts to the beat can move them
+        subs = subtitle_lines(clip.render_segments(), transcript, read)
+        for i, e in enumerate(clip.effects):
+            if e["type"] == "music":
+                clip.effects[i] = tune_music(e, variant, bool(subs))
+        clip.effects.append({"type": "subs", "lines": [
+            {**ln, "start": round(clip.to_output_time(ln["start"]), 2),
+             "end": round(clip.to_output_time(ln["end"]), 2)} for ln in subs]})  # fmt: skip
+        clip.overlays = self._plan_text(clip, variant)
+        self._clips.save(clip)
+        return clip
+
+    def choose(self, clip_id: str) -> Clip:
+        """Marks this version of a planned Short as the one to post; its siblings stay."""
+        clip = self._get(clip_id)
+        story = (clip.publish.get("plan") or {}).get("story")
+        if not story:
+            raise SphuraError("only planned Shorts have versions to choose from")
+        for c in self._clips.list_for_project(clip.project_id):
+            if (c.publish.get("plan") or {}).get("story") == story:
+                c.publish = {**c.publish, "chosen": c.id == clip_id}
+                self._clips.save(c)
+        return clip
+
+    @staticmethod
+    def _plan_text(clip: Clip, variant: str) -> list[TextOverlay]:
+        """Only the edit (B) gets a hook line; the clean and cinematic cuts let the scene
+        speak, like the top Shorts of these games. Never spoils the payoff."""
+        total = clip.output_duration_s
+        if variant == "B":
+            text = str(clip.publish.get("reaction") or clip.publish.get("hype") or "").strip()
+            return [TextOverlay(text, 0.0, min(2.5, total), "hook")] if text else []
+        return []
 
     def render(self, clips: list[Clip], export_dir: Path | None = None) -> list[Job]:
         if export_dir is not None:
@@ -252,7 +392,8 @@ class ClipService:
         """Effects for the moment's kind, minus the ones switched off in the editor."""
         kind = classify(self._ctx[0])
         fx = plan_effects(clip, peak_s, tl, wav, kind)
-        clip.effects = filter_off(fx, list(clip.publish.get("fx_off") or []))
+        voice = [e for e in clip.effects if e["type"] == "voiceover"]  # narration stays
+        clip.effects = filter_off(fx, list(clip.publish.get("fx_off") or [])) + voice
         clip.crop_path = []  # the teaser adds footage the camera must cover
 
     def _apply_music(self, clip: Clip, tracks: list[MusicTrack], reroll: bool = False) -> None:
@@ -805,8 +946,11 @@ class ClipService:
         return self.render([clip], Path(folder))[0]
 
     def _frames(self, clip: Clip, peak_s: float) -> list[ImageInput]:
-        """Three frames (build-up, the hit, aftermath) for the copywriter to look at."""
-        asset = self._assets.get(clip.asset_id)
+        return self.frames_at(clip.asset_id, peak_s)
+
+    def frames_at(self, asset_id: str, peak_s: float) -> list[ImageInput]:
+        """Three frames (build-up, the hit, aftermath) for the AI to look at."""
+        asset = self._assets.get(asset_id)
         if self._sample is None or asset is None:
             return []
         times = [max(0.0, peak_s - 2.0), peak_s, peak_s + 1.5]
@@ -877,7 +1021,10 @@ class RenderHandler:
             if clip.aspect == AspectRatio.LANDSCAPE
             else "_" + clip.aspect.value.replace(":", "x")
         )
-        if clip.style != "hype":
+        plan = clip.publish.get("plan") or {}
+        if plan.get("variant"):  # versions of one planned Short must not overwrite each other
+            suffix += f"_{plan['variant']}-{slugify(str(plan.get('label', '')), 12)}"
+        elif clip.style != "hype":
             suffix += f"_{clip.style}"
         name = f"{clip.rank or 0:02d}_{slugify(clip.title)}{suffix}.mp4"
         out = self._storage.artifact_path(clip.project_id, "renders", name)

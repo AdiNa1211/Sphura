@@ -15,6 +15,7 @@ import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
@@ -35,9 +36,13 @@ from sphura.ports.storage import StorageProvider
 
 log = logging.getLogger(__name__)
 
-PROMPT_VERSION = 3  # v3: factual checklist drives the score; risky-claim guard
+PROMPT_VERSION = 5  # v5: reads on-screen text, moment database fields, concrete payoffs
 FRAMES_PER_CANDIDATE = 8
 FRAME_WIDTH = 512
+READ_WIDTH = 1280  # close-ups of subtitles / HUD, so names can actually be read
+SUBTITLE_BOX = (0.05, 0.64, 0.95, 0.97)  # GoW and Phantom Blade subtitles sit here
+HUD_BOX = (0.15, 0.0, 0.85, 0.13)  # boss name bars
+FORMATS = ("story", "combat", "boss", "unexpected", "lore", "discovery")
 MIN_REFINED_S = MIN_CLIP_S
 _HOPELESS_AFTER = 3
 
@@ -60,6 +65,21 @@ CHECKLIST = (
 SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
+        "on_screen_dialogue": {
+            "type": "array",
+            "description": "Subtitle lines read from the close-ups, exactly as written",
+            "items": {
+                "type": "object",
+                "properties": {"speaker": {"type": "string"}, "text": {"type": "string"}},
+                "required": ["speaker", "text"],
+            },
+        },
+        "on_screen_names": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Boss bar, enemy, location or quest names read exactly",
+        },
+        "characters": {"type": "array", "items": {"type": "string"}},
         "footage": {
             "type": "string",
             "description": "What the frames show: gameplay, cutscene, menu, loading, other",
@@ -89,8 +109,23 @@ SCHEMA: dict[str, Any] = {
         "start_offset_s": {"type": "number"},
         "end_offset_s": {"type": "number"},
         "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "formats": {"type": "array", "items": {"type": "string", "enum": list(FORMATS)}},
+        "emotion": {"type": "integer", "minimum": 0, "maximum": 10},
+        "intensity": {"type": "integer", "minimum": 0, "maximum": 10},
+        "dialogue_matters": {"type": "boolean"},
+        "payoff_what": {
+            "type": "string",
+            "description": "The visible outcome in a few words, or empty if none is visible",
+        },
+        "payoff_seen": {"type": "boolean"},
+        "payoff_offset_s": {"type": "number"},
+        "hook_offset_s": {"type": "number"},
+        "visual": {"type": "string", "enum": ["good", "dark", "cluttered", "blurry"]},
     },
     "required": [
+        "on_screen_dialogue",
+        "on_screen_names",
+        "characters",
         "footage",
         "what_happens",
         "is_highlight",
@@ -104,12 +139,31 @@ SCHEMA: dict[str, Any] = {
         "start_offset_s",
         "end_offset_s",
         "confidence",
+        "formats",
+        "emotion",
+        "intensity",
+        "dialogue_matters",
+        "payoff_what",
+        "payoff_seen",
+        "payoff_offset_s",
+        "hook_offset_s",
+        "visual",
     ],
 }
 
 SYSTEM = """You are an experienced short-form video editor for gaming content (TikTok, \
 YouTube Shorts, Instagram Reels). You review ONE candidate moment cut from a long recording \
 and decide whether it would make an engaging standalone short.
+
+First READ, then judge:
+- on_screen_dialogue: copy every subtitle line visible in the "Subtitle close-up" images, \
+with the speaker name shown before it (or "" if none). Exact words; skip what you can't read.
+- on_screen_names: copy names from boss bars, enemy labels, location or quest text in the \
+"HUD close-up" images, exactly as spelled (keep letters like Æ, Ø, Ö).
+- characters: who is visibly in the moment. Use a name only if it is in on_screen_dialogue, \
+on_screen_names or the transcript; otherwise describe them ("a giant armored enemy").
+- Names on screen are always right: when the transcript spells a name differently (it is \
+machine-transcribed), use the on-screen spelling everywhere, including title and hook.
 
 Rules:
 - Judge only from the frames, transcript lines and signal evidence provided. Never invent \
@@ -151,7 +205,26 @@ window start) that keep the setup and the payoff or reaction. Use 0 and the full
 the window is already right.
 - confidence 0-1: how sure you are, given that you only see a few frames.
 - The transcript is machine-generated and may be mistranscribed or mistranslated; treat \
-low-confidence lines with caution. The recording may contain non-English speech."""
+low-confidence lines with caution. The recording may contain non-English speech.
+Moment database fields:
+- formats: which Shorts this moment could carry. story: an emotional or dramatic scene \
+with meaningful dialogue. combat: an impressive fight, hit or finisher. boss: a fight \
+against a boss (named boss bar or giant enemy). unexpected: funny, surprising or odd. \
+lore: dialogue that reveals story, mythology or a character's past. discovery: a mechanic, \
+puzzle, item or technique worth showing. Empty if none fits.
+- emotion 0-10: how much the moment matters emotionally or for the story (a heartfelt \
+or tense conversation can be 8+; a routine fight is 1-2).
+- intensity 0-10: how intense the action is (cutscene talk 0-2, ordinary fight 4-5, \
+boss finisher 8+).
+- dialogue_matters: true if the original spoken lines carry the moment and must be heard.
+- payoff_what: the outcome you can SEE in a frame (e.g. "the boss collapses", "Atreus \
+lands in the snow"); empty if no frame shows it. A health bar still on screen means the \
+fight is not over. payoff_seen: true only if payoff_what names a visible outcome.
+- payoff_offset_s / hook_offset_s: seconds from window start of the payoff and of the most \
+gripping instant (the best possible first second of a Short).
+- visual: good, dark (hard to see), cluttered (menus/HUD over the action) or blurry.
+- is_highlight: be selective. Most moments of a long video are ordinary; only say true \
+when this would clearly be worth watching on its own."""
 
 
 def _level(z: float) -> str:
@@ -163,6 +236,16 @@ def frame_times(w: CandidateWindow, n: int = FRAMES_PER_CANDIDATE) -> list[float
     span = w.end_s - w.start_s
     even = [w.start_s + span * (i + 0.5) / (n - 1) for i in range(n - 1)]
     return sorted([*even, w.peak_s])
+
+
+def subtitle_times(w: CandidateWindow, n: int = 3) -> list[float]:
+    """When subtitles are likely on screen: the middle of spoken lines, spread out."""
+    mids = [(s.start_s + s.end_s) / 2 for s in w.transcript if w.start_s <= s.start_s < w.end_s]
+    if not mids:
+        return [w.start_s + w.duration_s * f for f in (0.3, 0.7)]
+    if len(mids) <= n:
+        return mids
+    return [mids[round(i * (len(mids) - 1) / (n - 1))] for i in range(n)]
 
 
 def build_request(w: CandidateWindow, frames: list[ImageInput]) -> LLMRequest:
@@ -193,7 +276,8 @@ def build_request(w: CandidateWindow, frames: list[ImageInput]) -> LLMRequest:
     else:
         evidence.append("Transcript: no speech detected in this window.")
     evidence.append(
-        f"\nFrames above are in time order. Review the moment and submit your verdict. "
+        "\nThe first images are frames in time order; the close-ups after them are for "
+        "reading subtitles and HUD names. Review the moment and submit your verdict. "
         f"Offsets must be between 0 and {w.duration_s:.1f}."
     )
     return LLMRequest(
@@ -201,7 +285,7 @@ def build_request(w: CandidateWindow, frames: list[ImageInput]) -> LLMRequest:
         prompt="\n".join(evidence),
         images=frames,
         json_schema=SCHEMA,
-        max_tokens=800,
+        max_tokens=1600,  # the v4+ schema answers run ~700 tokens; 800 cut some off
     )
 
 
@@ -265,22 +349,150 @@ def parse_judgement(text: str, w: CandidateWindow, provider: str) -> AIJudgement
     refined = None
     if b - a >= MIN_REFINED_S and (a > 0.5 or b < w.duration_s - 0.5):
         refined = TimeRange(w.start_s + a, w.start_s + b)
+    dialogue = tuple(
+        (str(x.get("speaker", "")).strip(), str(x.get("text", "")).strip())
+        for x in d.get("on_screen_dialogue") or []
+        if isinstance(x, dict) and str(x.get("text", "")).strip()
+    )[:12]
+    names = tuple(dict.fromkeys(n for n in (str(x).strip() for x in d.get("on_screen_names")
+                                or []) if is_name(n)))[:8]  # fmt: skip
+    known = list(names) + [sp for sp, _ in dialogue if sp]
+
+    heard = " ".join(seg.text for seg in w.transcript)
+
+    def fix(t: str) -> str:
+        return fix_names(t, known, heard)
+
+    characters = tuple(fix(c) for c in (str(x).strip() for x in d.get("characters") or [])
+                       if c and not _NOT_NAME.search(c))  # fmt: skip
+    emotion = _int(d.get("emotion"), 0, 10)
+    intensity = _int(d.get("intensity"), 0, 10)
+    visual = str(d.get("visual", "good"))
+    confidence = float(min(max(float(d.get("confidence", 0.5)), 0.0), 1.0))
+    payoff = bool(d.get("payoff_seen")) and len(str(d.get("payoff_what", "")).strip()) >= 4
+    q = rubric_quality(d)
+    if emotion >= 7 and d.get("dialogue_matters"):
+        q += 1.0  # a strong scene, even without action
+    if visual in ("dark", "blurry"):
+        q -= 1.0
+    q = min(max(q, 1.0), 10.0)
+    quality = round(0.8 * q + 0.2 * model_q)
+    # The model says yes to most moments; only keep the ones the evidence supports
+    keep = (
+        bool(d.get("is_highlight"))
+        and category is not None
+        and d.get("menu_or_loading") != "mostly"
+        and confidence >= 0.35
+        and (quality >= 6 or emotion >= 7 or bool(d.get("funny")))
+    )
     return AIJudgement(
         provider=provider,
-        is_highlight=bool(d.get("is_highlight")) and category is not None,
+        is_highlight=keep,
         category=category,
-        quality=round(0.8 * rubric_quality(d) + 0.2 * model_q),
+        quality=quality,
         standalone=bool(d.get("standalone")),
-        what_happens=str(d.get("what_happens", "")).strip(),
-        reason=str(d.get("reason", "")).strip(),
-        title=_safe_text(str(d.get("title", "")).strip()[:80])
+        what_happens=fix(str(d.get("what_happens", "")).strip()),
+        reason=fix(str(d.get("reason", "")).strip()),
+        title=fix(_safe_text(str(d.get("title", "")).strip()[:80]))
         or _fallback_title(str(d.get("what_happens", "")), tags, category),
-        hook=_safe_text(str(d.get("hook", "")).strip()[:60]),
-        confidence=float(min(max(float(d.get("confidence", 0.5)), 0.0), 1.0)),
+        hook=fix(_safe_text(str(d.get("hook", "")).strip()[:60])),
+        confidence=confidence,
         refined=refined,
         tags=tags,
         model_quality=model_q,
+        dialogue=dialogue,
+        names=names,
+        characters=characters[:6],
+        formats=tuple(f for f in dict.fromkeys(d.get("formats") or []) if f in FORMATS),
+        emotion=emotion,
+        intensity=intensity,
+        dialogue_matters=bool(d.get("dialogue_matters")),
+        payoff_seen=payoff,
+        payoff_s=_offset(d.get("payoff_offset_s"), w) if payoff else None,
+        hook_s=_offset(d.get("hook_offset_s"), w),
+        visual=visual if visual in ("good", "dark", "cluttered", "blurry") else "",
     )
+
+
+# HUD text that isn't a name: distances, XP pop-ups, quest objectives, region banners
+_NOT_NAME = re.compile(r"\d|:|\bXP\b|\bdiscovered\b|\bregion\b", re.IGNORECASE)
+
+
+_NAME_JOINERS = {"the", "of", "de", "von"}
+
+
+def is_name(text: str) -> bool:
+    """A name, not an objective ("Hunting for Solace") or a HUD readout ("20 m")."""
+    words = text.split()
+    return (
+        0 < len(words) <= 4
+        and not _NOT_NAME.search(text)
+        and all(w[:1].isupper() or w.lower() in _NAME_JOINERS for w in words)
+    )
+
+
+def _int(v: Any, lo: int, hi: int) -> int:
+    try:
+        return int(min(max(int(v), lo), hi))
+    except (TypeError, ValueError):
+        return lo
+
+
+def _offset(v: Any, w: CandidateWindow) -> float | None:
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return None
+    return w.start_s + min(max(x, 0.0), w.duration_s)
+
+
+_WORD = re.compile(r"\b[^\W\d_][\w'\u2019-]{3,}\b")
+
+
+# Recurring characters: never "corrected" into another name
+CAST = {
+    "kratos", "atreus", "freya", "odin", "thor", "mimir", "tyr", "heimdall", "angrboda",
+    "sindri", "brok", "baldur", "thrud", "sif", "jormungandr", "fenrir", "faye", "loki",
+    "hildisvini", "ratatoskr", "durlin", "lunda", "surtr", "sinmara", "skjoldr", "garm",
+    "soul", "leidang", "grandmaster",
+}  # fmt: skip
+
+
+def _plain(s: str) -> str:
+    s = s.lower().replace("æ", "ae").replace("ø", "o").replace("ö", "o").replace("ð", "d")
+    return re.sub(r"[^a-z]", "", s)
+
+
+def fix_names(text: str, names: list[str], heard: str) -> str:
+    """Swaps a misheard name for the close on-screen spelling, e.g. "Pirkkini the Zealot"
+    -> "Frækni the Zealot" when the boss bar reads FRÆKNI. Only words the transcript
+    actually contains are touched: that is where misspelled names come from."""
+    heard_words = {_plain(w) for w in re.findall(r"[^\W\d_][\w'\u2019-]{3,}", heard)}
+    if not text or not names or not heard_words:
+        return text
+    tokens = {w for n in names for w in re.findall(r"[^\W\d_][\w'\u2019-]{4,}", n)}
+    plain = {_plain(t): t for t in tokens}
+
+    def swap(m: re.Match[str]) -> str:
+        word: str = m.group(0)
+        p = _plain(word)
+        if not word[0].isupper() or p in plain or len(p) < 5 or p not in heard_words:
+            return word
+        best, score = None, 0.0
+        for k, t in plain.items():
+            r = SequenceMatcher(None, p, k).ratio()
+            if r > score:
+                best, score = t, r
+        if best is None or p[:5] == _plain(best)[:5] or p in CAST:
+            return word  # same word in another form, or a known character
+        if abs(len(p) - len(_plain(best))) > 2:
+            return word
+        close = score >= 0.5 and len(p) >= 6 and abs(len(p) - len(_plain(best))) <= 1
+        if score < 0.7 and not close:
+            return word
+        return str(best.title() if best.isupper() else best)
+
+    return _WORD.sub(swap, text)
 
 
 def _fallback_title(what: str, tags: tuple[str, ...], category: HighlightCategory | None) -> str:
@@ -311,6 +523,17 @@ def judgement_to_dict(j: AIJudgement) -> dict[str, Any]:
         "refined": [j.refined.start_s, j.refined.end_s] if j.refined else None,
         "tags": list(j.tags),
         "model_quality": j.model_quality,
+        "dialogue": [list(x) for x in j.dialogue],
+        "names": list(j.names),
+        "characters": list(j.characters),
+        "formats": list(j.formats),
+        "emotion": j.emotion,
+        "intensity": j.intensity,
+        "dialogue_matters": j.dialogue_matters,
+        "payoff_seen": j.payoff_seen,
+        "payoff_s": j.payoff_s,
+        "hook_s": j.hook_s,
+        "visual": j.visual,
     }
 
 
@@ -331,6 +554,17 @@ def judgement_from_dict(d: dict[str, Any]) -> AIJudgement:
         refined=TimeRange(r[0], r[1]) if r else None,
         tags=tuple(d.get("tags", ())),
         model_quality=d.get("model_quality"),
+        dialogue=tuple((str(a), str(b)) for a, b in d.get("dialogue") or []),
+        names=tuple(d.get("names") or ()),
+        characters=tuple(d.get("characters") or ()),
+        formats=tuple(d.get("formats") or ()),
+        emotion=int(d.get("emotion") or 0),
+        intensity=int(d.get("intensity") or 0),
+        dialogue_matters=bool(d.get("dialogue_matters")),
+        payoff_seen=bool(d.get("payoff_seen")),
+        payoff_s=d.get("payoff_s"),
+        hook_s=d.get("hook_s"),
+        visual=str(d.get("visual") or ""),
     )
 
 
@@ -452,8 +686,25 @@ class JudgeStage:
             ImageInput(t, jpg, f"Frame {k + 1} at +{t - w.start_s:.1f}s")
             for k, (t, jpg) in enumerate(zip(times, jpegs, strict=True))
         ]
+        frames += self._close_ups(asset, w)
         resp = llm.complete(build_request(w, frames))
         return parse_judgement(resp.text, w, llm.info.name), resp.input_tokens, resp.output_tokens
+
+    def _close_ups(self, asset: MediaAsset, w: CandidateWindow) -> list[ImageInput]:
+        """Full-resolution crops of the subtitle band (when lines are spoken) and the boss
+        bar, so the judge can read names a 512 px frame makes illegible."""
+        times = subtitle_times(w)
+        out: list[ImageInput] = []
+        try:
+            subs = self._sampler.sample(asset.source_uri, times, READ_WIDTH, SUBTITLE_BOX)
+            hud = self._sampler.sample(asset.source_uri, [w.peak_s], READ_WIDTH, HUD_BOX)
+        except Exception as e:  # reading is a bonus; judging still works without it
+            log.warning("couldn't crop close-ups at %.0fs: %s", w.peak_s, e)
+            return out
+        for t, jpg in zip(times, subs, strict=True):
+            out.append(ImageInput(t, jpg, f"Subtitle close-up at +{t - w.start_s:.1f}s"))
+        out.append(ImageInput(w.peak_s, hud[0], f"HUD close-up at +{w.peak_s - w.start_s:.1f}s"))
+        return out
 
     @staticmethod
     def _key(asset: MediaAsset, w: CandidateWindow, provider: str) -> str:

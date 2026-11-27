@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from sphura.domain.errors import ToolchainError
-from sphura.domain.models import AspectRatio, Clip, CropKeyframe, MediaInfo
+from sphura.domain.models import AspectRatio, Clip, CropKeyframe, MediaInfo, TextOverlay
 from sphura.infrastructure.media.ffmpeg.ass import overlays_ass
 from sphura.infrastructure.media.ffmpeg.process import run_with_progress
 from sphura.infrastructure.media.ffmpeg.toolchain import FFmpegToolchain
@@ -96,7 +96,12 @@ class FFmpegRenderer:
         music = next((e for e in clip.effects if e["type"] == "music"), None)
         if music and Path(music["path"]).is_file():
             cmd += ["-ss", f"{music['offset_s']:.3f}", "-i", music["path"]]
-            music_in = extra
+            music_in, extra = extra, extra + 1
+        voice = next((e for e in clip.effects if e["type"] == "voiceover"), None)
+        voice_in = None
+        if voice and Path(voice["path"]).is_file():
+            cmd += ["-i", voice["path"]]
+            voice_in = extra
         landscape = clip.aspect == AspectRatio.LANDSCAPE
         # Vertical/square crop a slice of the frame, so keep source detail until the crop
         height = min(MAX_HEIGHT if landscape else MAX_SOURCE_HEIGHT, v.display_height) // 2 * 2
@@ -126,7 +131,7 @@ class FFmpegRenderer:
         parts += self._frame_chain(clip, frame_w, frame_h)
         g = geometry(clip, frame_w, frame_h)
         parts += _effects_chain(clip, g.out_w, g.video_h, text_file, g.bar_h)
-        parts += _audio_mix(clip, sfx_in, music_in, music)
+        parts += _audio_mix(clip, sfx_in, music_in, music, voice_in)
         cmd += [
             "-filter_complex", ";".join(parts),
             "-map", "[vout]", "-map", "[aout]",
@@ -179,12 +184,11 @@ class FFmpegRenderer:
         part = out_path.with_name(f"{out_path.stem}.{tag}.part.mp4")
         text = out_path.with_name(f"{out_path.stem}.{tag}.ass")
         text_name: str | None = None
-        if clip.overlays:
+        overlays = clip.overlays + _narration_captions(clip) + _dialogue_captions(clip)
+        if overlays:
             if self._tc.has_filter("ass"):
                 g = geometry(clip, 1920, 1080)
-                text.write_text(
-                    overlays_ass(clip.overlays, g.out_w, g.out_h, g.bar_h), encoding="utf-8"
-                )
+                text.write_text(overlays_ass(overlays, g.out_w, g.out_h, g.bar_h), encoding="utf-8")
                 text_name = text.name  # relative: avoids drive-letter escaping in filters
             else:
                 log.warning("this FFmpeg build has no libass; on-screen text is skipped")
@@ -340,9 +344,14 @@ def _speed_plan(clip: Clip) -> list[tuple[float, float | None, float]]:
 
 
 def _audio_mix(
-    clip: Clip, sfx_in: int | None, music_in: int | None, music: dict[str, Any] | None
+    clip: Clip,
+    sfx_in: int | None,
+    music_in: int | None,
+    music: dict[str, Any] | None,
+    voice_in: int | None = None,
 ) -> list[str]:
-    """[as] game audio (+ generated SFX, + music ducked under the game) -> [aout]."""
+    """[as] game audio (+ generated SFX, + music ducked under the game, + narration with
+    everything else ducked under it) -> [aout]."""
     parts = [f"[as]volume={clip.audio.game_gain:.3f}[g0]"]
     mix = ["[g0]"]
     if music_in is not None and music is not None:
@@ -367,11 +376,56 @@ def _audio_mix(
         parts.append(f"[{sfx_in}:a]aresample=48000,aformat=channel_layouts=stereo[fx]")
         mix.append("[fx]")
     tail = f"loudnorm=I={TARGET_LUFS}:TP=-1.5:LRA=11,aresample=48000[aout]"
-    if len(mix) == 1:
+    if voice_in is not None:
+        dur = clip.output_duration_s
+        bed = (
+            "[g0]anull[bed]"
+            if len(mix) == 1
+            else (f"{''.join(mix)}amix=inputs={len(mix)}:duration=first:normalize=0[bed]")
+        )
+        parts.append(bed)
+        parts.append(
+            f"[{voice_in}:a]aresample=48000,aformat=channel_layouts=stereo,apad,"
+            f"atrim=duration={dur:.3f},volume=1.6,asplit=2[vo][vsc]"
+        )
+        # The game and music back off while the narrator speaks
+        parts.append("[bed][vsc]sidechaincompress=threshold=0.015:ratio=10:attack=20:"
+                     "release=400:makeup=1[bd]")  # fmt: skip
+        parts.append(f"[bd][vo]amix=inputs=2:duration=first:normalize=0,{tail}")
+    elif len(mix) == 1:
         parts.append(f"[g0]{tail}")
     else:
         parts.append(f"{''.join(mix)}amix=inputs={len(mix)}:duration=first:normalize=0,{tail}")
     return parts
+
+
+def _dialogue_captions(clip: Clip) -> list[TextOverlay]:
+    """The characters' lines, big enough for a phone, with the speaker's name."""
+    subs = next((e for e in clip.effects if e["type"] == "subs"), None)
+    if not subs:
+        return []
+    return [
+        TextOverlay(
+            (f"{ln['speaker']}|" if ln.get("speaker") else "") + str(ln["text"]),
+            ln["start"], ln["end"], "sub", y=0.755,
+        )
+        for ln in subs.get("lines", [])
+        if ln["end"] > ln["start"]
+    ]  # fmt: skip
+
+
+def _narration_captions(clip: Clip) -> list[TextOverlay]:
+    """Each spoken narration line as a subtitle, higher than the characters' captions."""
+    voice = next((e for e in clip.effects if e["type"] == "voiceover"), None)
+    if not voice:
+        return []
+    return [
+        TextOverlay(
+            str(ln.get("caption") or ln.get("text")), ln["start"], ln["end"], "plain", y=0.62
+        )
+        for ln in voice.get("lines", [])
+        if not ln.get("dropped") and "start" in ln
+    ]
 
 
 def _music_envelope(music: dict[str, Any], dur: float) -> str:

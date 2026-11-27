@@ -70,7 +70,13 @@ class ClipRepository(Protocol):
 
     def get(self, clip_id: str) -> Clip | None: ...
     def list_for_project(self, project_id: str) -> list[Clip]: ...
-    def find_by_candidate(self, candidate_id: str, style: str | None = None) -> Clip | None:
+    def find_by_candidate(
+        self,
+        candidate_id: str,
+        style: str | None = None,
+        fmt: str | None = None,
+        plan: str | None = None,
+    ) -> Clip | None:
         """Most recent clip for that moment (in that style, when given)."""
         ...
 

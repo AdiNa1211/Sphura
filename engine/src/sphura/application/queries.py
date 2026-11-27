@@ -3,10 +3,20 @@ from __future__ import annotations
 import json
 
 from sphura.domain.errors import NotFoundError
-from sphura.domain.models import Clip, EditingMode, Job, MediaAsset, Project
+from sphura.domain.models import (
+    Clip,
+    EditingMode,
+    HighlightCandidate,
+    Job,
+    MediaAsset,
+    Project,
+)
 from sphura.domain.transcript import Transcript
 from sphura.pipeline.preferences import TasteModel, learn
 from sphura.pipeline.ranking import RankedHighlight, rank
+from sphura.pipeline.stages import read_text_any
+from sphura.pipeline.stories import Story, canonical_names, unfinished_fights, with_names
+from sphura.pipeline.stories import link as link_stories
 from sphura.pipeline.timeline import SignalTimeline
 from sphura.ports.repositories import (
     CandidateRepository,
@@ -66,7 +76,7 @@ class QueryService:
         path = self._storage.artifact_path(project_id, "analysis", "transcript.json")
         if not path.is_file():
             raise NotFoundError("no transcript yet; run analyze first")
-        return Transcript.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        return Transcript.from_dict(json.loads(read_text_any(path)))
 
     def transcript_version(self, project_id: str) -> int:
         """Version of the transcription that made the saved transcript (0: none/unknown)."""
@@ -88,10 +98,23 @@ class QueryService:
         self, project_id: str, mode: EditingMode | None = None, limit: int | None = None
     ) -> list[RankedHighlight]:
         project = self.project(project_id)
-        found = self._candidates.list_for_project(project_id)
+        found = self.candidates(project_id)
         if not found:
             raise NotFoundError("no highlights yet; run analyze first")
         return rank(found, mode or project.mode, limit, self.taste())
+
+    def candidates(self, project_id: str) -> list[HighlightCandidate]:
+        """Stored moments with names spelled the same way across the whole video."""
+        found = self._candidates.list_for_project(project_id)
+        canon = canonical_names(found)
+        found = [with_names(c, canon) for c in found]
+        unfinished_fights(found)
+        return found
+
+    def stories(self, project_id: str) -> list[Story]:
+        """Neighbouring moments that make one story (setup, escalation, payoff)."""
+        self.project(project_id)
+        return link_stories(self.candidates(project_id))
 
     def clips(self, project_id: str) -> list[tuple[Clip, str | None]]:
         """Clips in rank order with their rendered file path, if any."""

@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import unicodedata
 from typing import Any
 
 from sphura.domain.models import AIJudgement
@@ -79,10 +80,13 @@ def write_copy(
     game: str | None,
     frames: list[ImageInput] | None = None,
     dialogue: list[str] | None = None,
+    hint: str | None = None,
 ) -> dict[str, Any]:
     copy = _fallback(judgement)
     if llm is not None and judgement is not None:
         prompt = _prompt(judgement, game, dialogue or [])
+        if hint:  # e.g. Trending Style: the title format that works for this game
+            prompt += "\n\n" + hint
         for attempt in range(2):
             try:
                 resp = llm.complete(
@@ -120,8 +124,14 @@ def _prompt(j: AIJudgement, game: str | None, dialogue: list[str]) -> str:
     ]
     if j.tags:
         lines.append(f"Details: {', '.join(j.tags)}")
-    if dialogue:
-        lines.append("Dialogue heard in the moment (exact, may name characters):")
+    who = list(dict.fromkeys([*j.names, *j.characters]))
+    if who:
+        lines.append(f"Names read on screen (correct spelling; prefer these): {', '.join(who)}")
+    if j.dialogue:
+        lines.append("Subtitles read on screen (exact, with speaker):")
+        lines += [f'  {sp + ": " if sp else ""}"{t}"' for sp, t in j.dialogue[:6]]
+    elif dialogue:
+        lines.append("Dialogue heard in the moment (machine transcript, may misspell names):")
         lines += [f'  "{d}"' for d in dialogue[:6]]
     return "\n".join(lines)
 
@@ -162,12 +172,31 @@ def _fallback(j: AIJudgement | None) -> dict[str, Any]:
     }
 
 
+def tag_of(text: str) -> str:
+    """ "God of War Ragnarök" -> "godofwarragnarok" (accents folded, not dropped)."""
+    plain = unicodedata.normalize("NFKD", text.lower().replace("æ", "ae").replace("ø", "o"))
+    return re.sub(r"[^a-z0-9]", "", plain.encode("ascii", "ignore").decode())
+
+
+# Other entries of a series, which the AI adds out of habit ("#godofwar3" on Ragnarök)
+_OTHER_ENTRY = re.compile(r"\d{1,4}$")
+
+
 def _finish(copy: dict[str, Any], game: str | None) -> dict[str, Any]:
-    game_tag = re.sub(r"[^a-z0-9]", "", game.lower()) if game else ""
+    game_tag = tag_of(game) if game else ""
     tags = [game_tag] if game_tag else []
-    tags += [t for t in copy.get("tags", []) if t not in tags]
+    for t in (tag_of(x) for x in copy.get("tags", [])):
+        if t and t not in tags and not (_OTHER_ENTRY.search(t) and t not in game_tag):
+            tags.append(t)
     tags += [t for t in ("shorts", "gaming") if t not in tags]
-    title = copy["title"].rstrip(" .")
+    # The AI often writes its own "| God of War Ragnarök [4K] 💀" tail: we add ours
+    title = re.sub(r"\[4k\]|#\w+", "", copy["title"], flags=re.IGNORECASE)
+    if game:
+        title = re.sub(rf"\s*[|┃\-\u2013:]?\s*{re.escape(game)}.*$", "", title, flags=re.IGNORECASE)
+    title = re.sub(r"[\s|┃\-\u2013]+$", "", title)
+    if copy.get("emoji"):
+        title = re.sub(r"[^\w\s'\".,!?…)]+$", "", title).rstrip()
+    title = title.rstrip(" .")
     emoji = f" {copy['emoji']}" if copy.get("emoji") else ""
     copy["hype"] = copy["hype"].upper().rstrip(".")
     copy["youtube_title"] = (f"{title}{emoji}" + (f" - {game}" if game else ""))[:100]

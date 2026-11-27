@@ -15,7 +15,7 @@ import shutil
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -61,6 +61,7 @@ class DownloadSettings:
     filename: str = "title_id"
     save_thumbnails: bool = True
     parallel: int = 2
+    previous_folders: list[str] = field(default_factory=list)  # where paused partials still are
 
 
 def default_folder() -> Path:
@@ -102,6 +103,7 @@ class DownloadManager:
         n = self._repo.interrupted_to_queued()
         if n:
             log.info("resuming %d interrupted download(s)", n)
+        self.relink()
         self._clean_orphans()
         self._closing.clear()
         self._scheduler = threading.Thread(target=self._schedule, daemon=True, name="downloads")
@@ -165,6 +167,9 @@ class DownloadManager:
                 probe.unlink()
             except OSError as e:
                 raise SphuraError(f"Can't save downloads in {folder}: {e.strerror or e}") from e
+            if str(folder) != s.folder:
+                s.previous_folders = [f for f in [s.folder, *s.previous_folders]
+                                      if f != str(folder)][:5]  # fmt: skip
             s.folder = str(folder)
         if "quality" in changes:
             if str(changes["quality"]) not in QUALITIES:
@@ -180,6 +185,8 @@ class DownloadManager:
             s.parallel = max(1, min(4, int(changes["parallel"])))
         self._settings_path.parent.mkdir(parents=True, exist_ok=True)
         self._settings_path.write_text(json.dumps(asdict(s), indent=2), encoding="utf-8")
+        if "folder" in changes:
+            self.relink()  # files the user moved there are found again
         self._wake.set()
         return s
 
@@ -341,17 +348,25 @@ class DownloadManager:
 
     def edit(self, download_id: str) -> str:
         """Open the download as a SPHURA project (analysis starts if it hasn't run)."""
+        project_id = self.link(download_id)
+        jobs = [j for j in self._queries.jobs(project_id) if j.type == JobType.ANALYZE]
+        if not any(j.status in (JobStatus.SUCCEEDED, JobStatus.QUEUED, JobStatus.RUNNING)
+                   for j in jobs):  # fmt: skip
+            self._analysis.start(project_id)
+        return project_id
+
+    def link(self, download_id: str) -> str:
+        """The download's SPHURA project, made without starting any analysis."""
         d = self._get(download_id)
         if d.status != "completed" or not d.file_path or not Path(d.file_path).is_file():
             raise SphuraError("The downloaded file is missing. Download it again.")
         r = self._ingest.ingest_local_file(d.file_path, project_name=d.title)
-        jobs = [j for j in self._queries.jobs(r.project.id) if j.type == JobType.ANALYZE]
-        if not any(j.status in (JobStatus.SUCCEEDED, JobStatus.QUEUED, JobStatus.RUNNING)
-                   for j in jobs):  # fmt: skip
-            self._analysis.start(r.project.id)
         if d.project_id != r.project.id:
             self._repo.update(d, project_id=r.project.id)
         return r.project.id
+
+    def completed(self) -> list[Download]:
+        return [d for d in self._repo.all() if d.status == "completed" and d.file_path]
 
     def editing_status(self, d: Download) -> str:
         if not d.project_id:
@@ -369,6 +384,30 @@ class DownloadManager:
         if latest.status in (JobStatus.QUEUED, JobStatus.RUNNING):
             return "analysing"
         return "analysed" if latest.status == JobStatus.SUCCEEDED else "analysis_failed"
+
+    def relink(self) -> int:
+        """Finished downloads the user moved into the download folder: found again by the
+        "[video id]" in their name, with the streams made from them pointed there too."""
+        folder = Path(self.settings().folder)
+        if not folder.is_dir():
+            return 0
+        n = 0
+        for d in self._repo.all():
+            if d.status != "completed" or (d.file_path and Path(d.file_path).is_file()):
+                continue
+            found = folder.glob(f"*[[]{d.video_id}[]]*")
+            hit = next(
+                (p for p in found if p.is_file() and p.suffix not in (".part", ".ytdl")), None
+            )
+            if hit is None:
+                continue
+            old = d.file_path
+            self._repo.update(d, file_path=str(hit))
+            if d.project_id:
+                self._ingest.move_source(d.project_id, old, str(hit))
+            log.info("found moved download %s at %s", d.video_id, hit)
+            n += 1
+        return n
 
     # ---------- listing ----------
 
@@ -405,6 +444,8 @@ class DownloadManager:
             self._wake.clear()
             if self._closing.is_set() or not self._yt.ready():
                 continue
+            if not self._live and any(d.status == "queued" for d in self._repo.all()):
+                self._yt.update_if_stale()  # YouTube changes often: a day-old yt-dlp gets slowed
             with self._lock:
                 slots = self.settings().parallel - len(self._live)
                 for d in [d for d in self._repo.all() if d.status == "queued"][: max(slots, 0)]:
@@ -421,7 +462,7 @@ class DownloadManager:
         live = self._live[d.id]
         settings = self.settings()
         folder = Path(settings.folder)
-        work = folder / PARTIAL / d.video_id
+        work = self._work_dir(d, settings)
         last_save = [0.0]
 
         def on_progress(step: Step) -> None:
@@ -441,6 +482,10 @@ class DownloadManager:
                 self._repo.update(d, progress=step.fraction)
 
         try:
+            if not Path(folder.anchor or "/").exists():
+                raise SphuraError(
+                    f"The drive {folder.anchor} isn't connected. Plug it in and retry."
+                )
             folder.mkdir(parents=True, exist_ok=True)
             if shutil.disk_usage(folder).free < MIN_FREE_BYTES:
                 raise SphuraError(f"Not enough disk space in {folder}. Free up space and retry.")
@@ -535,18 +580,33 @@ class DownloadManager:
         except SphuraError as e:
             log.info("thumbnail for %s not saved: %s", d.video_id, e)
 
+    def _work_dir(self, d: Download, settings: DownloadSettings) -> Path:
+        """A download started before the folder changed resumes where its partial file is;
+        only the finished video goes to the new folder."""
+        for f in [settings.folder, *settings.previous_folders]:
+            work = Path(f) / PARTIAL / d.video_id
+            if work.is_dir() and any(work.iterdir()):
+                return work
+        return Path(settings.folder) / PARTIAL / d.video_id
+
     def _discard_partial(self, d: Download) -> None:
-        shutil.rmtree(Path(self.settings().folder) / PARTIAL / d.video_id, ignore_errors=True)
+        s = self.settings()
+        for f in [s.folder, *s.previous_folders]:
+            shutil.rmtree(Path(f) / PARTIAL / d.video_id, ignore_errors=True)
 
     def _clean_orphans(self) -> None:
         """Remove partial files whose download no longer exists (temporary-file cleanup)."""
-        root = Path(self.settings().folder) / PARTIAL
-        if not root.is_dir():
-            return
+        s = self.settings()
         keep = {d.video_id for d in self._repo.all() if d.status in (*ACTIVE, "failed")}
-        for p in root.iterdir():
-            if p.name not in keep:
-                shutil.rmtree(p, ignore_errors=True) if p.is_dir() else p.unlink(missing_ok=True)
+        for f in [s.folder, *s.previous_folders]:
+            root = Path(f) / PARTIAL
+            if not root.is_dir():
+                continue
+            for p in root.iterdir():
+                if p.name not in keep:
+                    shutil.rmtree(p, ignore_errors=True) if p.is_dir() else p.unlink(
+                        missing_ok=True
+                    )
 
     def _need_tools(self) -> None:
         if not self._yt.ready():

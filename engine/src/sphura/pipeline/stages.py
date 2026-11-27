@@ -216,7 +216,7 @@ class TranscribeStage:
         )
         out_path = self.transcript_path(asset.project_id)
         if manifest.completed(self.name, key) and out_path.is_file():
-            return Transcript.from_dict(json.loads(out_path.read_text()))
+            return Transcript.from_dict(json.loads(read_text_any(out_path)))
 
         wav = WavFile(wav_path)
         chunks = plan_chunks(wav)
@@ -281,7 +281,7 @@ class TranscribeStage:
             segments=segments,
         )
         tmp = out_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(transcript.to_dict(), ensure_ascii=False))
+        tmp.write_text(json.dumps(transcript.to_dict(), ensure_ascii=False), encoding="utf-8")
         os.replace(tmp, out_path)
         manifest.mark(
             self.name,
@@ -351,3 +351,12 @@ def _drop_word_loops(words: list[TranscriptWord], limit: int = 4) -> list[Transc
             out += words[i:j]
         i = j
     return out
+
+
+def read_text_any(path: Path) -> str:
+    """UTF-8, or the Windows code page older versions wrote transcripts in (é, ñ...)."""
+    raw = path.read_bytes()
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("cp1252", errors="replace")

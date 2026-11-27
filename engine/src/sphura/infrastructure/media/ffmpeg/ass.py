@@ -9,6 +9,7 @@ from sphura.domain.models import TextOverlay
 
 FONT = "Arial Black"  # ships with Windows and macOS; libass falls back elsewhere
 BAR_FONT = "Arial"
+SUB_BAND = (0.645, 0.86)  # where a 16:9 game's subtitles land in a full-height 9:16 crop
 
 
 def overlays_ass(overlays: list[TextOverlay], width: int, height: int, bar_h: int = 0) -> str:
@@ -37,6 +38,9 @@ def overlays_ass(overlays: list[TextOverlay], width: int, height: int, bar_h: in
         f"{margin_v},1",
         f"Style: bar,{BAR_FONT},{bar_size},&H00000000,&H00000000,&H00FFFFFF,&H00FFFFFF,"
         f"-1,0,0,0,100,100,0,0,1,0,0,5,{width // 16},{width // 16},0,1",
+        f"Style: sub,{BAR_FONT},{round(size * 0.64)},&H00FFFFFF,&H00FFFFFF,&H00000000,"
+        f"&H96000000,-1,0,0,0,100,100,0,0,1,{max(3, size // 12)},1,2,{width // 10},"
+        f"{width // 10},{margin_v},1",
         f"Style: plain,{BAR_FONT},{round(size * 0.7)},&H00FFFFFF,&H00FFFFFF,&H00000000,"
         f"&H64000000,-1,0,0,0,100,100,0,0,1,{max(3, size // 14)},1,2,{width // 14},"
         f"{width // 14},{margin_v},1",
@@ -51,6 +55,11 @@ def overlays_ass(overlays: list[TextOverlay], width: int, height: int, bar_h: in
             body = r"{\fad(120,250)}" + _esc(o.text).upper()
         elif o.style == "plain":
             body = r"{\fad(80,120)}" + _esc(o.text)
+        elif o.style == "sub":  # "Speaker|line": the name in gold above the words
+            who, _, said = o.text.rpartition("|")
+            name = (r"{\c&H37AFD4&\fs" + str(round(size * 0.45)) + "}" + _esc(who).upper()
+                    + r"{\r}\N") if who else ""  # fmt: skip
+            body = r"{\fad(60,100)}" + name + _esc(said)
         else:
             # Pop in: start small, overshoot, settle; fade out at the end
             anim = (
@@ -59,7 +68,15 @@ def overlays_ass(overlays: list[TextOverlay], width: int, height: int, bar_h: in
             )
             # A chosen colour applies to the whole line instead of the yellow key word
             body = anim + (_esc(o.text).upper() if o.color else _styled(o.text))
-        lines.append(f"Dialogue: 0,{_ts(o.start_s)},{_ts(o.end_s)},{o.style},,0,0,0,,"
+        if o.style == "sub":
+            # A dark strip under our line hides the game's own (cropped) subtitle there
+            y0, y1 = round(height * SUB_BAND[0]), round(height * SUB_BAND[1])
+            band = (
+                r"{\an7\pos(0," + str(y0) + r")\p1\bord0\shad0\1c&H000000&\1a&H24&"
+                r"\fad(60,100)}" + f"m 0 0 l {width} 0 {width} {y1 - y0} 0 {y1 - y0}"
+            )
+            lines.append(f"Dialogue: 0,{_ts(o.start_s)},{_ts(o.end_s)},sub,,0,0,0,,{band}")
+        lines.append(f"Dialogue: 1,{_ts(o.start_s)},{_ts(o.end_s)},{o.style},,0,0,0,,"
                      f"{_place(o, width, height, size, bar_size)}{body}")  # fmt: skip
     return "\n".join(lines) + "\n"
 
@@ -87,7 +104,8 @@ def _styled(text: str) -> str:
 def base_size(style: str, width: int, height: int) -> float:
     """Font size a style uses before the overlay's own multiplier (also used by the editor)."""
     size = min(width, height) * 0.085
-    return {"caps": size * 0.9, "plain": size * 0.7, "bar": width * 0.064}.get(style, size)
+    return {"caps": size * 0.9, "plain": size * 0.7, "sub": size * 0.64,
+            "bar": width * 0.064}.get(style, size)  # fmt: skip
 
 
 def _place(o: TextOverlay, width: int, height: int, size: int, bar_size: int) -> str:

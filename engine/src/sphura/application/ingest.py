@@ -63,6 +63,17 @@ class IngestService:
         self._probe = probe
         self._queue = queue
 
+    def move_source(self, project_id: str, old: str | None, new: str) -> int:
+        """The user moved a source file: point the project's media at its new path.
+        Fingerprints are size + head/tail, so a moved (not edited) file still matches."""
+        n = 0
+        for a in self._assets.list_for_project(project_id):
+            if a.source_uri == old or not Path(a.source_uri).is_file():
+                a.source_uri = new
+                self._assets.update(a)
+                n += 1
+        return n
+
     def ingest_local_file(
         self,
         path: str | Path,

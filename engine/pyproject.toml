@@ -41,5 +41,5 @@ packages = ["sphura"]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = ["faster_whisper.*", "ctranslate2.*", "onnxruntime.*"]
+module = ["faster_whisper.*", "ctranslate2.*", "onnxruntime.*", "torch.*", "qwen_tts.*", "soundfile.*", "kokoro_onnx.*"]
 ignore_missing_imports = true

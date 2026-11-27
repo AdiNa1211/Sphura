@@ -65,13 +65,48 @@ def _cmd_ui(args: argparse.Namespace, settings: Settings) -> int:
     from sphura.api.app import create_app
 
     port = args.port or settings.port
-    settings = replace(settings, host="127.0.0.1", port=port, api_token=None)
+    host, token = "127.0.0.1", None
+    if args.lan:  # other devices on the network, with a key; this PC as usual
+        host, token = "0.0.0.0", _lan_key(settings.data_dir)
+    settings = replace(settings, host=host, port=port, api_token=token)
     url = f"http://127.0.0.1:{port}/"
     if not args.no_browser:
         threading.Timer(2.0, lambda: webbrowser.open(url)).start()
     print(f"SPHURA is running at {url}  (keep this window open; Ctrl+C to quit)")
-    uvicorn.run(create_app(settings), host="127.0.0.1", port=port, log_level="warning")
+    if token:
+        print("On other devices on your network (phone, laptop), open:")
+        for ip in _lan_ips():
+            print(f"  http://{ip}:{port}/?key={token}")
+        print("Anyone with that link can use SPHURA. Delete lan_key.txt in the data folder to"
+              " make a new key.")  # fmt: skip
+    uvicorn.run(create_app(settings), host=host, port=port, log_level="warning")
     return 0
+
+
+def _lan_key(data_dir: Path) -> str:
+    import secrets
+
+    path = data_dir / "lan_key.txt"
+    if path.is_file() and path.read_text(encoding="utf-8").strip():
+        return path.read_text(encoding="utf-8").strip()
+    data_dir.mkdir(parents=True, exist_ok=True)
+    key = secrets.token_urlsafe(16)
+    path.write_text(key, encoding="utf-8")
+    return key
+
+
+def _lan_ips() -> list[str]:
+    import contextlib
+    import socket
+
+    ips: set[str] = set()
+    with contextlib.suppress(OSError):
+        ips.update(socket.gethostbyname_ex(socket.gethostname())[2])
+    # The address used to reach the network, even when the hostname lookup is thin
+    with contextlib.suppress(OSError), socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.connect(("10.255.255.255", 1))
+        ips.add(s.getsockname()[0])
+    return sorted(ip for ip in ips if not ip.startswith("127.")) or ["<this PC's IP>"]
 
 
 def _cmd_ingest(args: argparse.Namespace, settings: Settings) -> int:
@@ -467,6 +502,7 @@ def main(argv: list[str] | None = None) -> int:
     u = sub.add_parser("ui", help="open SPHURA in your browser")
     u.add_argument("--port", type=int)
     u.add_argument("--no-browser", action="store_true")
+    u.add_argument("--lan", action="store_true", help="also allow other devices on your network")
 
     s = sub.add_parser("serve", help="run the local engine API")
     s.add_argument("--host")

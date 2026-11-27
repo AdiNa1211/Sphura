@@ -195,6 +195,18 @@ class AIJudgement:
     refined: TimeRange | None = None  # AI-suggested tighter boundaries, if any
     tags: tuple[str, ...] = ()  # factual checklist answers that were true, e.g. "boss"
     model_quality: int | None = None  # the model's own 1-10 impression (poorly calibrated)
+    # Moment database v2 (judge prompt v4); defaults keep older verdicts loadable
+    dialogue: tuple[tuple[str, str], ...] = ()  # (speaker, line) read from on-screen subtitles
+    names: tuple[str, ...] = ()  # boss bars, HUD and location text, read exactly
+    characters: tuple[str, ...] = ()  # who is visibly there
+    formats: tuple[str, ...] = ()  # content formats this moment could carry
+    emotion: int = 0  # 0-10 emotional / story weight
+    intensity: int = 0  # 0-10 action intensity
+    dialogue_matters: bool = False  # the original lines carry the moment: never talk over
+    payoff_seen: bool = False  # the outcome is visible inside the window
+    payoff_s: float | None = None  # source time of the payoff
+    hook_s: float | None = None  # source time of the most gripping instant
+    visual: str = ""  # good | dark | cluttered | blurry
 
 
 @dataclass(slots=True)
@@ -329,6 +341,7 @@ class JobType(StrEnum):
     CHECKSUM = "checksum"
     ANALYZE = "analyze"
     RENDER = "render"
+    LORE_INDEX = "lore_index"
 
 
 class JobStatus(StrEnum):

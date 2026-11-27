@@ -68,8 +68,15 @@ class AudioExtractor(Protocol):
 
 
 class FrameSampler(Protocol):
-    def sample(self, uri: str, times_s: list[float], width: int) -> list[bytes]:
-        """JPEG stills at the given source times (same order)."""
+    def sample(
+        self,
+        uri: str,
+        times_s: list[float],
+        width: int,
+        box: tuple[float, float, float, float] | None = None,
+    ) -> list[bytes]:
+        """JPEG stills at the given source times (same order). box: (x0, y0, x1, y1) as
+        fractions of the frame, cropped at full resolution before scaling (to read text)."""
         ...
 
 

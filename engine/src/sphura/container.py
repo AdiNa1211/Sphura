@@ -9,9 +9,15 @@ from sphura.application.clips import ClipService, RenderHandler
 from sphura.application.downloads import DownloadManager
 from sphura.application.feedback import FeedbackService
 from sphura.application.ingest import ChecksumHandler, IngestService
+from sphura.application.lore import LoreIndexHandler, LoreService
 from sphura.application.queries import QueryService
 from sphura.application.reels import ReelService
 from sphura.application.research import ResearchService
+from sphura.application.trending import TrendingService
+from sphura.application.voice_bench import VoiceBenchService
+from sphura.application.voice_intel import VoiceIntelService
+from sphura.application.voice_qa import VoiceQAService
+from sphura.application.voiceover import VoiceoverService
 from sphura.config import Settings, default_data_dir
 from sphura.domain.models import JobType
 from sphura.infrastructure.ai.accel import WhisperAccelChecker
@@ -20,6 +26,9 @@ from sphura.infrastructure.ai.acestep import default_root as default_acestep_roo
 from sphura.infrastructure.ai.anthropic import AnthropicProvider
 from sphura.infrastructure.ai.ollama import OllamaProvider
 from sphura.infrastructure.ai.people import YoloxPeopleDetector
+from sphura.infrastructure.ai.qwen_voice import QwenVoice
+from sphura.infrastructure.ai.speaker import SpeakerEmbedder
+from sphura.infrastructure.ai.voice import KokoroVoice
 from sphura.infrastructure.ai.whisper import FasterWhisperProvider
 from sphura.infrastructure.events.bus import InProcessEventBus
 from sphura.infrastructure.media.ffmpeg.audio import FFmpegAudioExtractor
@@ -28,12 +37,13 @@ from sphura.infrastructure.media.ffmpeg.frames import FFmpegFrameDecoder
 from sphura.infrastructure.media.ffmpeg.music import MusicLibrary
 from sphura.infrastructure.media.ffmpeg.probe import FfprobeMediaProbe
 from sphura.infrastructure.media.ffmpeg.render import FFmpegRenderer
-from sphura.infrastructure.media.ffmpeg.stills import FFmpegFrameSampler
+from sphura.infrastructure.media.ffmpeg.stills import FFmpegFrameSampler, polish_wav, retime_wav
 from sphura.infrastructure.media.ffmpeg.toolchain import FFmpegToolchain
 from sphura.infrastructure.media.sniff import MagicBytesSniffer
 from sphura.infrastructure.media.ytdlp import YouTubeImporter
 from sphura.infrastructure.persistence.sqlite.db import SqliteDatabase
 from sphura.infrastructure.persistence.sqlite.downloads import SqliteDownloadRepository
+from sphura.infrastructure.persistence.sqlite.lore import SqliteLoreRepository
 from sphura.infrastructure.persistence.sqlite.reels import SqliteReelRepository
 from sphura.infrastructure.persistence.sqlite.repositories import (
     SqliteCandidateRepository,
@@ -44,6 +54,7 @@ from sphura.infrastructure.persistence.sqlite.repositories import (
     SqliteProjectRepository,
 )
 from sphura.infrastructure.persistence.sqlite.research import SqliteResearchRepository
+from sphura.infrastructure.persistence.sqlite.voice import SqliteVoiceRepository
 from sphura.infrastructure.queue.local_queue import LocalJobQueue
 from sphura.infrastructure.storage.local import LocalSourceReader, LocalWorkspaceStorage
 from sphura.migrate import migrate_legacy
@@ -76,6 +87,12 @@ class LocalEngine:
     ai_music: AceStep
     reels: ReelService
     research: ResearchService
+    trending: TrendingService
+    voiceover: VoiceoverService
+    lore: LoreService
+    voice_intel: VoiceIntelService
+    voice_qa: VoiceQAService
+    voice_bench: VoiceBenchService
 
     def start(self) -> None:
         self.queue.start()
@@ -86,6 +103,7 @@ class LocalEngine:
         self.reels.stop()
         self.downloads.stop()
         self.ai_music.stop()
+        self.voiceover.stop()
         self.queue.stop()
 
 
@@ -114,13 +132,15 @@ def build_local_engine(settings: Settings) -> LocalEngine:
     whisper = FasterWhisperProvider(
         settings.whisper_model, settings.models_dir / "whisper", settings.whisper_device, accel
     )
+    extract_stage = ExtractAudioStage(FFmpegAudioExtractor(toolchain), storage)
+    transcribe_stage = TranscribeStage(whisper, storage)
     queue.register(
         JobType.ANALYZE,
         AnalyzeHandler(
             assets,
             storage,
-            ExtractAudioStage(FFmpegAudioExtractor(toolchain), storage),
-            TranscribeStage(whisper, storage),
+            extract_stage,
+            transcribe_stage,
             SignalsStage(FFmpegFrameDecoder(toolchain), storage),
             judge,
             CompareStage(llm, sampler, storage),
@@ -161,6 +181,60 @@ def build_local_engine(settings: Settings) -> LocalEngine:
         music.envelope,
     )
 
+    research = ResearchService(SqliteResearchRepository(db), settings.data_dir)
+    downloads = DownloadManager(
+        SqliteDownloadRepository(db),
+        YouTubeImporter(settings.data_dir / "tools", toolchain.ffmpeg),
+        probe,
+        ingest,
+        analysis,
+        queries,
+        settings.data_dir,
+        lambda uri, times, width: sampler.sample(uri, times, width),
+    )
+    lore_repo = SqliteLoreRepository(db)
+    queue.register(
+        JobType.LORE_INDEX,
+        LoreIndexHandler(
+            assets,
+            storage,
+            extract_stage,
+            transcribe_stage,
+            lambda uri, times, width: sampler.sample(uri, times, width),
+            llm,
+            lore_repo,
+            queries,
+        ),
+    )
+    voice_intel = VoiceIntelService(SqliteVoiceRepository(db), queries, lore_repo, llm)
+    lore = LoreService(
+        lore_repo,
+        queries,
+        assets,
+        queue,
+        downloads,
+        research,
+        llm,
+        lambda uri, times, width: sampler.sample(uri, times, width),
+        settings.data_dir,
+    )
+    kokoro = KokoroVoice(settings.models_dir / "kokoro")
+    qwen_voice = QwenVoice(default_acestep_root().parent / "qwen-tts", default_acestep_root())
+    voiceover = VoiceoverService(
+        clip_repo,
+        queries,
+        storage,
+        llm,
+        kokoro,
+        qwen_voice,
+        settings.data_dir / "voice_cache",
+        clips.frames_at,
+        voice_intel,
+        lambda path, speed: retime_wav(toolchain.ffmpeg, path, speed),
+        lambda path, mode: polish_wav(toolchain.ffmpeg, path, mode),
+    )
+    voice_qa = VoiceQAService(voiceover, voice_intel, whisper, SpeakerEmbedder(settings.models_dir),
+                              settings.data_dir / "voice_reports")  # fmt: skip
     return LocalEngine(
         settings=settings,
         events=events,
@@ -179,16 +253,7 @@ def build_local_engine(settings: Settings) -> LocalEngine:
         storage=storage,
         music=music,
         ai_music=ai_music,
-        downloads=DownloadManager(
-            SqliteDownloadRepository(db),
-            YouTubeImporter(settings.data_dir / "tools", toolchain.ffmpeg),
-            probe,
-            ingest,
-            analysis,
-            queries,
-            settings.data_dir,
-            lambda uri, times, width: sampler.sample(uri, times, width),
-        ),
+        downloads=downloads,
         reels=ReelService(
             SqliteReelRepository(db),
             ingest,
@@ -206,7 +271,19 @@ def build_local_engine(settings: Settings) -> LocalEngine:
             settings.data_dir,
             people,
         ),
-        research=ResearchService(SqliteResearchRepository(db), settings.data_dir),
+        research=research,
+        lore=lore,
+        trending=TrendingService(queries, clips, research, llm),
+        voiceover=voiceover,
+        voice_qa=voice_qa,
+        voice_bench=VoiceBenchService(
+            voiceover,
+            voice_intel,
+            voice_qa,
+            {"kokoro": kokoro, "qwen": qwen_voice},
+            settings.data_dir / "voice_bench",
+        ),
+        voice_intel=voice_intel,
     )
 
 

@@ -8,8 +8,8 @@ from dataclasses import asdict
 from typing import Annotated, Any
 
 import numpy as np
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, WebSocket
-from fastapi.responses import JSONResponse
+from fastapi import Depends, FastAPI, Query, Request, WebSocket
+from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.websockets import WebSocketDisconnect
 
 from sphura import __version__
@@ -35,6 +35,8 @@ from sphura.domain.events import JobProgressEvent
 from sphura.domain.models import AspectRatio, EditingMode
 from sphura.pipeline.judge import judgement_to_dict
 from sphura.pipeline.signals import top_peaks
+from sphura.pipeline.stories import speech_stats
+from sphura.pipeline.stories import to_dict as story_dict
 
 
 def engine_of(request: Request) -> LocalEngine:
@@ -43,6 +45,14 @@ def engine_of(request: Request) -> LocalEngine:
 
 
 Engine = Annotated[LocalEngine, Depends(engine_of)]
+
+
+COOKIE = "sphura_key"
+LOCKED = (
+    "<!doctype html><meta name=viewport content='width=device-width'><body style='font-family:"
+    "sans-serif;background:#111;color:#eee;padding:2em'><h2>SPHURA</h2><p>Open the link with "
+    "the key that the SPHURA window shows on the PC it runs on.</p></body>"
+)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -60,23 +70,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="SPHURA Engine", version=__version__, lifespan=lifespan)
 
-    @app.middleware("http")
-    async def local_only(request: Request, call_next: Any) -> Any:
-        # Without a token the API is open to this machine only: refuse other Host names so
-        # a web page can't reach it through DNS rebinding
-        host = (request.headers.get("host") or "").rsplit(":", 1)[0]
-        if settings.api_token is None and host not in LOCAL_HOSTS:
-            return JSONResponse({"detail": "local access only"}, status_code=403)
-        return await call_next(request)
-
     def _token_ok(token: str | None) -> bool:
         if settings.api_token is None:
             return True
         return token is not None and hmac.compare_digest(token, settings.api_token)
 
-    def auth(x_sphura_token: Annotated[str | None, Header()] = None) -> None:
-        if not _token_ok(x_sphura_token):
-            raise HTTPException(status_code=401, detail="invalid token")
+    def _local(host: str, client: str) -> bool:
+        return host in LOCAL_HOSTS and client in ("127.0.0.1", "::1", "")
+
+    @app.middleware("http")
+    async def access(request: Request, call_next: Any) -> Any:
+        # No token: this machine only, refusing other Host names (DNS rebinding). With a
+        # token (LAN mode): this machine as before, other devices with the key, which a
+        # link's ?key= stores in a cookie so videos and thumbnails load too
+        host = (request.headers.get("host") or "").rsplit(":", 1)[0]
+        client = request.client.host if request.client else ""
+        if settings.api_token is None:
+            if host not in LOCAL_HOSTS:
+                return JSONResponse({"detail": "local access only"}, status_code=403)
+            return await call_next(request)
+        if _local(host, client):
+            return await call_next(request)
+        key = request.query_params.get("key")
+        token = request.headers.get("x-sphura-token") or request.cookies.get(COOKIE) or key
+        if not _token_ok(token):
+            return HTMLResponse(LOCKED, status_code=401)
+        response = await call_next(request)
+        if key and _token_ok(key):
+            response.set_cookie(COOKIE, key, max_age=365 * 86400, httponly=True, samesite="lax")
+        return response
+
+    def auth() -> None:
+        """Access is checked for every request by the middleware above."""
 
     @app.exception_handler(SphuraError)
     async def _domain_error(_: Request, exc: SphuraError) -> JSONResponse:
@@ -136,7 +161,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         project_id: str, engine: Engine, mode: EditingMode | None = None, limit: int = 20
     ) -> list[dict[str, Any]]:
         out = []
-        for r in engine.queries.highlights(project_id, mode, limit):
+        ranked = engine.queries.highlights(project_id, mode, limit)
+        in_story = {cid: st.id for st in engine.queries.stories(project_id) for cid in st.moments}
+        try:
+            segs = engine.queries.transcript(project_id).segments
+        except Exception:
+            segs = []
+        for r in ranked:
             c, j = r.candidate, r.candidate.judgement
             span = c.clip_range
             out.append(
@@ -150,9 +181,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "tier": r.tier.value if r.tier else None,
                     "signal_drivers": list(c.drivers),
                     "ai": judgement_to_dict(j) if j else None,
+                    "story": in_story.get(c.id),
+                    "audio": speech_stats(segs, span.start_s, span.end_s),
                 }
             )
         return out
+
+    @app.get("/v1/projects/{project_id}/stories", dependencies=v1)
+    def stories(project_id: str, engine: Engine) -> list[dict[str, Any]]:
+        return [story_dict(s) for s in engine.queries.stories(project_id)]
 
     @app.post("/v1/projects/{project_id}/clips", dependencies=v1)
     def generate_clips(
@@ -223,7 +260,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def events(
         ws: WebSocket, token: Annotated[str | None, Query()] = None, project_id: str | None = None
     ) -> None:
-        if not _token_ok(token):
+        host = (ws.headers.get("host") or "").rsplit(":", 1)[0]
+        client = ws.client.host if ws.client else ""
+        if (
+            settings.api_token is not None
+            and not _local(host, client)
+            and not _token_ok(token or ws.cookies.get(COOKIE))
+        ):
             await ws.close(code=4401)
             return
         await ws.accept()

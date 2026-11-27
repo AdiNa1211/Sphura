@@ -366,14 +366,27 @@ class SqliteClipRepository:
         ).fetchall()
         return [clip_from_dict(json.loads(r["edl"])) for r in rows]
 
-    def find_by_candidate(self, candidate_id: str, style: str | None = None) -> Clip | None:
+    def find_by_candidate(
+        self,
+        candidate_id: str,
+        style: str | None = None,
+        fmt: str | None = None,
+        plan: str | None = None,
+    ) -> Clip | None:
+        """`fmt`: a format Short ("Formats that get views") is a separate clip from the
+        plain Short of the same moment and style; None finds only plain ones. `plan`: a
+        planned Short (story + variant), likewise kept apart from the others."""
         rows = self._db.conn.execute(
             "SELECT edl FROM clips WHERE candidate_id = ? ORDER BY updated_at DESC",
             (candidate_id,),
         ).fetchall()
         for r in rows:
             clip = clip_from_dict(json.loads(r["edl"]))
-            if style is None or clip.style == style:
+            if (
+                (style is None or clip.style == style)
+                and (clip.publish.get("trend") or {}).get("format") == fmt
+                and (clip.publish.get("plan") or {}).get("key") == plan
+            ):
                 return clip
         return None
 

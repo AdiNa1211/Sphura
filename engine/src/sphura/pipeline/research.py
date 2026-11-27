@@ -269,3 +269,49 @@ def patterns(videos: list[dict[str, Any]]) -> dict[str, Any]:
     out["top_hashtags"] = [{"tag": t, "count": c} for t, c in tags.most_common(12)]
     out["top_n"], out["rest_n"] = len(top), len(rest)
     return out
+
+
+# --- appeal of a planned Short, from what the researched Shorts about the same thing got ---
+
+APPEAL_PRIOR = 8  # a handful of Shorts naming someone is a hint: lean on the game's median
+_STOP = {"the", "of", "a", "an", "and", "god", "war", "ragnarok", "ragnarök", "phantom",
+         "blade", "zero", "player", "enemy", "giant", "boss", "with", "from", "into", "over",
+         "that", "this", "their", "when", "after", "before", "against", "taking", "down",
+         "final", "first", "last", "moment", "fight", "fighting", "battle", "scene", "shorts",
+         "short", "gameplay", "epic", "brutal", "sudden", "massive", "high", "impact",
+         "attitude", "response", "lesson", "patience", "words", "wearing", "thin", "story",
+         "unexpected", "cinematic", "takes", "meets", "gets", "makes"}  # fmt: skip
+
+
+def appeal(names: list[str], words: list[str], videos: list[dict[str, Any]]) -> dict[str, Any]:
+    """How Shorts naming the same characters (or, without names, the same topic words)
+    did, against the game's median: lift in log10 views, shrunk toward 0 for small samples.
+    Evidence, not a prediction of how this Short will do."""
+    views = [float((v.get("metrics") or {}).get("views") or 0) for v in videos]
+    views = [x for x in views if x > 0]
+    if len(views) < 10:
+        return {"lift": 0.0, "basis": "", "n": 0}
+    base = math.log10(statistics.median(views))
+    best: dict[str, Any] = {"lift": 0.0, "basis": "", "n": 0}
+    terms = [(n, True) for n in dict.fromkeys(names) if n.lower() not in _STOP]
+    terms += [(w, False) for w in dict.fromkeys(words) if len(w) > 3 and w.lower() not in _STOP]
+    for term, is_name in terms[:12]:
+        rx = re.compile(rf"\b{re.escape(term.split()[0])}\b", re.IGNORECASE)
+        hit = [float((v.get("metrics") or {}).get("views") or 0) for v in videos
+               if rx.search(v.get("title", ""))]  # fmt: skip
+        hit = [x for x in hit if x > 0]
+        if len(hit) < 2:
+            continue
+        med = statistics.median(hit)
+        lift = len(hit) * (math.log10(med) - base) / (len(hit) + APPEAL_PRIOR)
+        lift *= 1.0 if is_name else 0.6  # a word match is weaker evidence than a character
+        if not best["n"] or lift > best["lift"]:  # the strongest signal among its subjects
+            best = {"lift": round(lift, 2), "n": len(hit), "median": int(med), "term": term,
+                    "basis": f"Shorts about {term.split()[0].title()}: {len(hit)} found, "
+                             f"median {_short(med)} views (game median "
+                             f"{_short(10**base)})"}  # fmt: skip
+    return best
+
+
+def _short(x: float) -> str:
+    return f"{x / 1e6:.1f}M" if x >= 1e6 else f"{x / 1e3:.0f}K" if x >= 1e3 else str(int(x))

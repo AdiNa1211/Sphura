@@ -152,7 +152,7 @@ class VoiceQAService:
             },
             "recognised": {  # automatic, and recognition can be wrong about fictional names
                 "checked": check_names and self._asr_error is None,
-                "error": self._asr_error,
+                "error": self._asr_error if check_names else None,
                 "names": names_flat,
                 "warnings": [
                     n for n in names_flat if n["status"] in ("check", "suspect", "unclear")

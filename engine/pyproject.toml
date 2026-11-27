@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["ruff>=0.6", "mypy>=1.11"]
+dev = ["ruff>=0.6", "mypy>=1.11", "pytest>=8"]
 
 [project.scripts]
 sphura = "sphura.cli:main"

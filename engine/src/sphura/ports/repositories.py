@@ -34,8 +34,9 @@ class JobRepository(Protocol):
     def list_for_project(self, project_id: str) -> list[Job]: ...
     def update(self, job: Job) -> None: ...
 
-    def claim_next(self) -> Job | None:
-        """Atomically move the oldest queued job to RUNNING and return it."""
+    def claim_next(self, previews_only: bool = False) -> Job | None:
+        """Atomically move the oldest queued job to RUNNING and return it.
+        previews_only: only editor preview renders (the reserved preview worker)."""
         ...
 
     def requeue_stale(self, older_than_s: float) -> int:

@@ -344,11 +344,11 @@
   .edinner { position: relative; padding-left: 0; }
   .edruler { position: relative; height: 22px; border-bottom: 1px solid var(--line); cursor: pointer; }
   .edruler span { position: absolute; top: 3px; font-size: 11px; color: var(--muted); transform: translateX(2px); }
-  .edtrack { position: relative; margin-top: 18px; border-radius: 6px; background: var(--track); }
-  .edlab { position: absolute; left: 2px; top: -15px; font-size: 10px; color: var(--muted); z-index: 0; }
-  .edblk { position: absolute; top: 4px; height: 26px; border-radius: 5px; font-size: 12px; overflow: hidden; white-space: nowrap; display: flex; align-items: center; cursor: grab; user-select: none; }
-  .edblk span { padding: 0 10px; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
-  .edblk.seg { background: #2b3550; border: 1px solid #3d4a70; height: 40px; }
+  .edtrack { position: relative; margin-top: 16px; border-radius: 6px; background: var(--track); }
+  .edlab { position: absolute; left: 2px; top: -14px; font-size: 10px; color: var(--muted); z-index: 3; display: flex; align-items: center; white-space: nowrap; }
+  .edblk { position: absolute; left: 0; top: 4px; height: calc(100% - 8px); border-radius: 5px; font-size: 12px; overflow: hidden; white-space: nowrap; display: flex; align-items: center; cursor: grab; user-select: none; }
+  .edblk span { padding: 0 10px; overflow: hidden; text-overflow: ellipsis; pointer-events: none; position: relative; z-index: 2; }
+  .edblk.seg { background: #2b3550; border: 1px solid #3d4a70; }
   .edfilm { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
   .edfilm img { position: absolute; top: 0; height: 100%; object-fit: cover; opacity: .9; }
   .edblk.seg span { position: relative; z-index: 1; margin-left: 12px; padding: 1px 6px; background: rgba(0,0,0,.6); border-radius: 4px; font-size: 11px; }
@@ -359,7 +359,7 @@
   .edtrimv { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; z-index: 4; }
   .edtrimlab { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 5; background: rgba(0,0,0,.75); color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 13px; white-space: nowrap; }
   .edblk.teaser { background: #3a2410; color: var(--accent2); border: 1px dashed #6a4520; padding-left: 6px; cursor: default; }
-  .edblk.txt { height: 22px; background: #3a1f4a; border: 1px solid #6b3d87; }
+  .edblk.txt { height: 24px; background: #3a1f4a; border: 1px solid #6b3d87; }
   .edblk.aud { background: #12302a; border: 1px solid #1f5246; color: #3ddc97; }
   .edblk.aud.tz { border-style: dashed; cursor: default; opacity: .8; }
   .edblk.mus { background: #241f3c; border: 1px solid #463b72; color: #a78bfa; cursor: pointer; }
@@ -395,7 +395,7 @@
     background-image: linear-gradient(90deg, transparent 3px, rgba(255,255,255,.55) 3px, rgba(255,255,255,.55) 4px, transparent 4px, transparent 6px, rgba(255,255,255,.55) 6px, rgba(255,255,255,.55) 7px, transparent 7px); }
   .edblk .h:hover { background-color: var(--accent); }
   .edblk .h.l { left: 0; } .edblk .h.r { right: 0; }
-  .edph { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); pointer-events: none; z-index: 3; }
+  .edph { position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); pointer-events: none; z-index: 3; }
   .edphh { position: absolute; top: 0; left: -7px; width: 16px; height: 20px; pointer-events: auto; cursor: ew-resize; background: var(--accent);
     clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%); }
   .edruler, .edtrack { cursor: ew-resize; }
@@ -404,6 +404,46 @@
   .edrow { display: flex; align-items: center; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
   .edrow label { width: 44px; font-size: var(--fs-sm); color: var(--muted); }
   .edrow input[type=number] { width: 62px; padding: 3px 5px; }
+  /* M2 timeline */
+  .edticks { position: absolute; inset: 0; pointer-events: none; }
+  .edblk .h { z-index: 2; width: 12px; }
+  .edblk.on.txt, .edblk.on.aud, .edblk.on.mus { outline: 2px solid #fff; outline-offset: -2px; }
+  .edblk.ghost { opacity: .65; z-index: 6; box-shadow: 0 0 0 2px var(--accent); cursor: grabbing; }
+  .edblk.aud.muted { opacity: .6; background-image: repeating-linear-gradient(45deg, transparent 0 6px, rgba(255,255,255,.07) 6px 12px); }
+  .edcv { position: absolute; left: 0; top: 4px; pointer-events: none; z-index: 1; }
+  .edtrack.closed { background: var(--line); }
+  .edcol { border: 0; background: transparent; color: var(--muted); padding: 0 4px 0 0; min-width: 16px; font-size: 10px; line-height: 12px; cursor: pointer; }
+  .edcol:hover { color: var(--text); }
+  .edsplit { position: relative; height: 6px; cursor: ns-resize; z-index: 2; }
+  .edsplit:hover::after { content: ""; position: absolute; left: 0; right: 0; top: 2px; height: 2px; background: var(--accent); opacity: .7; }
+  .edspd { position: absolute; left: 0; bottom: 6px; height: 18px; min-width: 26px; padding: 0 4px; font-size: 11px; line-height: 16px; border-radius: 9px; z-index: 3;
+    background: rgba(20,16,8,.85); color: #ffd9a0; border: 1px dashed #c98a2e; cursor: grab; text-align: center; overflow: hidden; white-space: nowrap; }
+  .edcutting .edspd { display: none; }
+  .edspd.mine { border-style: solid; color: #fff; }
+  .edspd.on { outline: 2px solid #fff; outline-offset: 1px; }
+  .edmk { position: absolute; left: 0; top: 0; width: 16px; height: 22px; margin-left: -8px; z-index: 4; cursor: grab; }
+  .edmk::before { content: ""; position: absolute; left: 7px; top: 0; height: 22px; width: 2px; background: #ffd34d; }
+  .edmk b { position: absolute; left: 10px; top: 3px; font-size: 10px; font-weight: 600; background: #ffd34d; color: #000; padding: 0 4px; border-radius: 3px; white-space: nowrap; max-width: 100px; overflow: hidden; text-overflow: ellipsis; }
+  .edmk.on b { outline: 2px solid #fff; }
+  .edloop { position: absolute; left: 0; top: 0; height: 22px; background: rgba(var(--acc-rgb),.18); border-bottom: 2px solid var(--accent); pointer-events: none; }
+  .edhov { position: absolute; left: 0; top: 3px; font-size: 10px; background: rgba(0,0,0,.8); color: #fff; padding: 0 4px; border-radius: 3px; pointer-events: none; z-index: 6; white-space: nowrap; }
+  .edguide { position: absolute; left: 0; top: 0; bottom: 0; width: 1px; background: #ffd34d; z-index: 5; pointer-events: none; }
+  .edins { position: absolute; left: -1px; top: 22px; bottom: 0; width: 3px; background: var(--accent); z-index: 5; pointer-events: none; }
+  .edbox { position: absolute; border: 1px dashed var(--accent); background: rgba(var(--acc-rgb),.12); z-index: 5; pointer-events: none; }
+  .edfab { position: absolute; left: 0; top: -1px; z-index: 7; display: flex; gap: 2px; padding: 1px; background: var(--raised); border: 1px solid var(--line2); border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+  .edfab button { min-width: 24px; min-height: 22px; padding: 1px 5px; font-size: 12px; background: transparent; border-color: transparent; }
+  .edfab button:hover:not(:disabled) { background: var(--track); }
+  .edbar button.on, #edsnapbtn.on { color: var(--accent); }
+  #edtl:focus-visible, .edbar button:focus-visible, .edfab button:focus-visible, .edspd:focus-visible, .edcol:focus-visible, .edmenu button:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .edmenu { position: fixed; z-index: 1000; min-width: 230px; background: var(--raised); border: 1px solid var(--line2); border-radius: 8px; padding: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+  .edmenu button { display: flex; width: 100%; gap: 12px; text-align: left; background: transparent; border: 0; padding: 6px 10px; font-size: 13px; border-radius: 5px; }
+  .edmenu button:hover:not([aria-disabled]), .edmenu button:focus { background: var(--track); }
+  .edmenu button[aria-disabled] { opacity: .45; cursor: default; }
+  .edmenu kbd { margin-left: auto; opacity: .6; }
+  .edmenu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+  .edhelpdlg { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.55); display: grid; place-items: center; }
+  .edhelpdlg .card { max-width: 560px; width: 92vw; }
+  .edhelpdlg td { padding: 3px 10px 3px 0; vertical-align: top; }
   @media (max-width: 1100px) { .edgrid { grid-template-columns: 1fr; } }
   .vo-line { display: grid; grid-template-columns: 86px 1fr auto; gap: 8px; align-items: start; margin: 6px 0; }
   .vo-line textarea { width: 100%; min-height: 40px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; resize: vertical; }
@@ -447,6 +487,7 @@
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="/editor.js"></script>
 <script>
 const $ = (s, el = document) => el.querySelector(s);
 const STAGES = [
@@ -596,10 +637,9 @@ async function showDownloads(tab) {
       <div class="tab" id="t-library" onclick="dlTab('library')">Downloaded videos</div></div>
     <div id="dl-queue">
       <div class="card"><h2>Add from YouTube</h2>
-        <div class="row"><label class="small muted" style="width:90px">Video link</label><input type="text" id="dlvideo" class="grow" placeholder="https://www.youtube.com/watch?v=…" onkeydown="if(event.key==='Enter')dlPreview(false)">
-          <button class="primary" onclick="dlPreview(false)">Continue</button></div>
-        <div class="row" style="margin-top:8px"><label class="small muted" style="width:90px">Playlist link</label><input type="text" id="dlplaylist" class="grow" placeholder="https://www.youtube.com/playlist?list=…" onkeydown="if(event.key==='Enter')dlPreview(true)">
-          <button class="primary" onclick="dlPreview(true)">Continue</button></div>
+        <div class="row"><input type="text" id="dllink" class="grow" placeholder="Paste a YouTube video, playlist or channel link" oninput="dlKindHint()" onkeydown="if(event.key==='Enter')dlPreview()">
+          <span id="dlkind" class="badge" hidden></span>
+          <button class="primary" onclick="dlPreview()">Continue</button></div>
         <div id="dlpreview"></div></div>
       <div id="dlqueue"></div></div>
     <div id="dl-library" hidden>
@@ -672,13 +712,27 @@ function ytBar(step, p) { return `<div class="small muted" style="margin-bottom:
 async function dlTools() { try { await api("/v1/downloads/tools", { method: "POST" }); stopPolling(); dlPoll(); } catch (e) { toast(e.message); } }
 
 // --- import preview ---
-async function dlPreview(playlist) {
-  const url = $(playlist ? "#dlplaylist" : "#dlvideo").value.trim();
-  if (!url) return toast(playlist ? "Paste a playlist link first" : "Paste a video link first");
+// Same rules as the engine's link_kind: a watch link inside a playlist is the video
+function dlLinkKind(url) {
+  let u; try { u = new URL(url.trim()); } catch { return null; }
+  if (!/(^|\.)(youtube\.com|youtu\.be)$/i.test(u.hostname)) return null;
+  const path = u.pathname.replace(/\/$/, "");
+  if (path === "/playlist" && u.searchParams.get("list")) return "playlist";
+  if (/^\/(@[^/]+|channel\/[^/]+|c\/[^/]+|user\/[^/]+)(\/(videos|streams|shorts))?$/.test(path)) return "channel";
+  return u.hostname.endsWith("youtu.be") || u.searchParams.get("v") || /^\/(shorts|live)\//.test(path) ? "video" : null;
+}
+function dlKindHint() {
+  const k = dlLinkKind($("#dllink").value), el = $("#dlkind");
+  el.hidden = !k; el.textContent = { video: "Video", playlist: "Playlist", channel: "Channel videos" }[k] || "";
+}
+async function dlPreview(playlist, link) {
+  const url = (link || $("#dllink").value).trim();
+  if (!url) return toast("Paste a YouTube link first");
+  const kind = playlist ? "playlist" : dlLinkKind(url);
   const box = $("#dlpreview");
-  box.innerHTML = `<div style="margin-top:12px"><span class="spin"></span> <span class="muted">Reading ${playlist ? "the playlist" : "the video's details"} from YouTube…</span></div>`;
+  box.innerHTML = `<div style="margin-top:12px"><span class="spin"></span> <span class="muted">Reading ${kind === "video" ? "the video's details" : kind === "channel" ? "the channel's videos" : kind === "playlist" ? "the playlist" : "the link"} from YouTube…</span></div>`;
   try {
-    const v = await api("/v1/downloads/preview", { method: "POST", body: { url, playlist } });
+    const v = await api("/v1/downloads/preview", { method: "POST", body: { url, playlist: playlist || (kind ? kind !== "video" : null) } });
     state.dl.preview = v;
     v.kind === "playlist" ? dlRenderPlaylist(v) : dlRenderVideo(v);
   } catch (e) { box.innerHTML = `<div class="err" style="margin-top:10px">${esc(e.message)}</div>`; }
@@ -700,7 +754,8 @@ function dlRenderVideo(v) {
   $("#dlpreview").innerHTML = `<div class="rec" style="margin-top:12px">
     ${v.thumbnail ? `<img src="${esc(v.thumbnail)}" style="width:160px;aspect-ratio:16/9;object-fit:cover;border-radius:6px">` : ""}
     <div class="grow"><div class="name">${esc(v.title)}</div><div class="small muted">${esc(v.channel)} · ${hms(v.duration_s)}</div>
-      ${blocked ? `<div class="small" style="color:var(--accent2);margin-top:6px">${esc(v.problem || v.duplicate)}</div>` : ""}</div></div>
+      ${blocked ? `<div class="small" style="color:var(--accent2);margin-top:6px">${esc(v.problem || v.duplicate)}</div>` : ""}
+      ${v.playlist_url ? `<div class="small muted" style="margin-top:6px">This video is part of a playlist. <a href="#" onclick="dlPreview(true, '${esc(v.playlist_url)}');return false">Get the whole playlist instead</a></div>` : ""}</div></div>
     <div class="row" style="margin-top:10px"><label class="small" style="white-space:nowrap">Quality</label>${dlQualitySelect(v)}</div>${RIGHTS}
     <div class="row" style="margin-top:10px"><div class="grow"></div>
       <button class="primary" id="dlgo" ${blocked ? "disabled" : ""}>${v.problem && v.problem.includes("processing") ? "Waiting for YouTube" : "Add to queue"}</button></div>`;
@@ -742,21 +797,23 @@ async function dlAdd(items, playlistTitle) {
       duration_s: e.duration_s, thumbnail: e.thumbnail })), quality: $("#dlq").value, playlist_title: playlistTitle, confirm_rights: true } });
     const skip = r.skipped.length ? ` · ${r.skipped.length} skipped (${esc(r.skipped[0].reason.toLowerCase())}${r.skipped.length > 1 ? ", …" : ""})` : "";
     toast(`${r.added} added to the queue${skip}`);
-    $("#dlpreview").innerHTML = ""; $("#dlvideo").value = ""; $("#dlplaylist").value = "";
+    $("#dlpreview").innerHTML = ""; $("#dllink").value = ""; dlKindHint();
     stopPolling(); dlPoll();
   } catch (e) { toast(e.message); }
 }
 
 // --- queue ---
 function dlRenderQueue(queue) {
-  const sig = JSON.stringify(queue.map(d => [d.id, d.status, Math.round((d.progress || 0) * 1000), d.speed_bps, d.step, d.error]));
+  const sig = JSON.stringify(queue.map(d => [d.id, d.status, Math.round((d.progress || 0) * 1000), d.speed_bps, d.step, d.error, Math.round((d.done_bytes || 0) / 1e6)]));
   if (sig === state.dl.sig.queue) return; state.dl.sig.queue = sig;
   const el = $("#dlqueue");
   if (!queue.length) { el.innerHTML = `<div class="card muted">The queue is empty. Paste a video or playlist link above. Finished downloads move to <a href="#" onclick="dlTab('library');return false">Downloaded videos</a>.</div>`; return; }
   el.innerHTML = `<div class="card"><h2>Queue</h2>${queue.map(d => {
     const [label, cls] = DST[d.status] || [d.status, "b-maybe"];
     const live = d.status === "downloading";
-    const detail = live ? [speed(d.speed_bps), eta(d.eta_s), d.total_bytes ? "of " + size(d.total_bytes) : ""].filter(Boolean).join(" · ") : "";
+    const left = d.size_bytes ? Math.max(0, d.size_bytes - (d.done_bytes || 0)) : null;
+    const bytes = d.size_bytes ? `${size(d.done_bytes || 0)} of ${size(d.size_bytes)} · ${size(left)} left` : d.total_bytes ? "of " + size(d.total_bytes) : "";
+    const detail = live ? [bytes, speed(d.speed_bps), eta(d.eta_s)].filter(Boolean).join(" · ") : "";
     const btn = (a, t, p) => `<button class="small ${p ? "" : "ghost"}" onclick="dlAct('${d.id}','${a}')">${t}</button>`;
     const ctl = { downloading: btn("pause", "Pause") + btn("cancel", "Cancel"), queued: btn("pause", "Pause") + btn("remove", "Remove"),
       paused: btn("resume", "Resume", 1) + btn("cancel", "Cancel") + btn("remove", "Remove"),
@@ -1764,645 +1821,7 @@ function rlExport(el) {
       <div class="small muted" style="margin-top:10px">A .txt with the title, description, chapters and hashtags is saved next to the video too.</div></div></div>`;
 }
 
-// ---------- Timeline editor ----------
-function edOpen() { return !!(ed && $("#edtl")); }
-function edLeaveOk() {
-  // Leaving the editor with unsaved edits asks first; a confirmed leave drops them
-  if (!edOpen() || !ed.dirty) return true;
-  if (!confirm("You have unsaved changes in this Short.\n\nLeave without saving them? (Press Cancel, then Update preview or Save & export to keep them.)")) return false;
-  ed.dirty = false; return true;
-}
-window.addEventListener("beforeunload", e => { if (edOpen() && ed.dirty) { e.preventDefault(); e.returnValue = ""; } });
-const ED_STYLES = { plain: "Subtitle", hook: "Pop-in hook", caps: "Caps opener", bar: "Meme caption bar" };
-const FX_NAMES = { cold_open: "Cold open (climax first)", zoom: "Zoom punches", shake: "Camera shake", slowmo: "Slow motion",
-  flash: "Flashes & glitches", rgb: "RGB split", trail: "Motion trail", vignette: "Vignette", letterbox: "Letterbox bars", sfx: "Sound effects" };
-let ed = null;
-
-async function openEditor(id) {
-  nav("editor");
-  rlStop();
-  stopPolling(); leaveDownloads();
-  history.replaceState(null, "", "#edit/" + id);
-  $("#main").innerHTML = `<div class="card"><span class="spin"></span> Opening the editor: loading the Short and its recording…</div>`;
-  try {
-    const st = await api(`/v1/clips/${id}/editor`);
-    ed = { st, sel: null, dirty: false, pps: 40, busy: false, audio: null, audioKey: null };
-    renderEditor();
-    if (!st.has_draft) edRender("draft", true);
-  } catch (e) { $("#main").innerHTML = `<div class="empty"><b>Couldn't open the editor</b><span class="err">${esc(e.message)}</span><div class="row"><button onclick="openEditor('${id}')">${ic("refresh")} Try again</button></div></div>`; }
-}
-
-function edTotal() {
-  // Client-side length while editing: server numbers until parts change, then 1:1 sums
-  const s = ed.st;
-  return ed.dirtyCuts ? s.teaser_out + s.segments.reduce((a, [x, y]) => a + (y - x), 0) : s.duration;
-}
-function edSegOut() {
-  const s = ed.st;
-  if (!ed.dirtyCuts) return s.segments_out;
-  let t = s.teaser_out;
-  return s.segments.map(([a, b]) => { const r = [t, t + (b - a)]; t += b - a; return r; });
-}
-
-function renderEditor() {
-  const s = ed.st;
-  const back = s.project_id ? `state.tab='shorts';openProject('${s.project_id}')` : "showNew()";
-  $("#main").innerHTML = `
-    <div class="edhead"><button class="ghost icon" onclick="${back}" data-tip="Back to Shorts">${ic("back")}</button>
-      <h1 class="grow">${esc(s.title)}</h1>
-      <span class="small muted" id="edstatus"></span>
-      <button onclick="edRender('draft')" id="edprev" title="Render your changes so you can watch them">${ic("eye")} Update preview</button>
-      <button class="primary" onclick="edRender('final')" title="Render the final Short and save it">${ic("export")} Export</button></div>
-    <div class="edgrid">
-      <div class="card edstage">
-        <div class="edmodes"><button id="edm-short" class="on" onclick="edMode(false)" title="Watch and edit the Short">${ic("video")} Short</button>
-          <button id="edm-rec" onclick="edMode(true)" title="See the whole recording and add more footage to the Short">${ic("reel")} Full recording</button></div>
-        <div id="edframe" class="edframe" style="aspect-ratio:${s.out_w}/${s.out_h}">
-          <video id="edvid" playsinline preload="auto"></video><div id="edtext" class="edtext"></div><div id="edlive" class="edlive" hidden>LIVE · straight from the recording</div>
-          <video id="edtrimv" class="edtrimv" muted playsinline preload="auto" hidden></video><div id="edtrimlab" class="edtrimlab" hidden></div></div>
-        <div class="edbar" id="edbar"></div>
-      </div>
-      <div class="card" id="edinspector"></div>
-    </div>
-    <div class="card"><div class="row small muted" style="margin-bottom:6px"><b style="color:var(--text)">Timeline</b><div class="grow"></div>
-      <span id="edtlhint"></span> <span title="Zoom">−</span><input type="range" id="edzoom" min="10" max="160" value="${ed.pps}" style="width:120px" oninput="edZoom(+this.value)" title="Zoom"><span title="Zoom">+</span></div>
-      <div id="edtl" class="edtl"></div></div>`;
-  edSource(); edDraw(); edInspector();
-}
-
-function edMode(orig) {
-  if (ed.orig === orig) return;
-  ed.orig = orig; ed.sel = null; edSetMarks(null, null); edSource(); edInspector();
-}
-function edSource() {
-  const v = $("#edvid"), orig = !!ed.orig;
-  ed.live = false; $("#edframe")?.classList.remove("live"); if ($("#edlive")) $("#edlive").hidden = true;
-  $("#edm-short")?.classList.toggle("on", !orig); $("#edm-rec")?.classList.toggle("on", orig);
-  v.src = orig ? `/v1/clips/${ed.st.id}/source` : (ed.st.has_draft ? `/v1/clips/${ed.st.id}/draft.mp4?v=${Date.now()}` : `/v1/clips/${ed.st.id}/video`);
-  $("#edframe").style.aspectRatio = orig ? "16/9" : `${ed.st.out_w}/${ed.st.out_h}`;
-  v.ontimeupdate = v.onseeked = edTick; v.onplay = v.onpause = () => { const b = $("#edplaybtn"); if (b) b.innerHTML = v.paused ? ic("play") : ic("pause"); };
-  if (orig) { const seg = ed.st.segments[ed.sel?.kind === "seg" ? ed.sel.i : 0]; v.onloadedmetadata = () => v.currentTime = seg[0]; }
-  else v.onloadedmetadata = null;
-  if (!orig && !ed.st.has_draft) $("#edstatus").textContent = "Showing the exported Short (text burned in) until the preview is ready";
-  if (!orig && ed.dirtyCuts) { v.removeAttribute("src"); edLiveSync(); }
-  if ($("#edtl")) edSourceView();
-}
-function edBtn(label, on, why, fn, cls = "") {
-  return `<button class="${cls}" ${on ? "" : "disabled"} title="${esc(on ? "" : why)}" onclick="${fn}">${label}</button>`;
-}
-function edSplitOk() {
-  const t = edNow(), so = edSegOut();
-  return !ed.orig && so.some(([a, b]) => t > a + 0.3 && t < b - 0.3);
-}
-function edToolbar() {
-  // One row of plain-labelled actions; greyed-out buttons say why on hover
-  const bar = $("#edbar"); if (!bar) return;
-  const v = $("#edvid"), play = `<button onclick="edPlay()" id="edplaybtn">${v && !v.paused ? ic("pause") : ic("play")}</button><span class="small muted" id="edtime"></span><div class="grow"></div>`;
-  if (!ed.orig) {
-    const sel = ed.sel, canDel = sel?.kind === "txt" || (sel?.kind === "seg" && ed.st.segments.length > 1);
-    const delLabel = ic("trash") + (sel?.kind === "txt" ? " Delete text" : sel?.kind === "seg" ? ` Delete part ${sel.i + 1}` : " Delete");
-    bar.innerHTML = play
-      + `<span id="edsplitwrap">${edBtn(ic("scissors") + " Split<kbd>S</kbd>", edSplitOk(), "Move the playhead inside a part (not at its edge) to split it there", "edSplit()")}</span>`
-      + edBtn(`${delLabel}<kbd>Del</kbd>`, canDel, sel?.kind === "seg" ? "A Short needs at least one part" : "Click a part or a text block in the timeline first", "edDelete()")
-      + edBtn(ic("text") + " Text", true, "", "edAddText()")
-      + `<i class="sep"></i>` + edBtn(ic("plus") + " Add footage", true, "", "edMode(true)");
-  } else {
-    const p = ed.pick, overlap = p && ed.st.segments.some(([a, b]) => p[0] < b && p[1] > a);
-    const note = p ? `Marked ${hms(p[0])}–${hms(p[1])} (${(p[1] - p[0]).toFixed(1)} s)`
-      : ed.mA != null ? `Start marked at ${hms(ed.mA)}. Now mark the end.` : ed.mB != null ? `End marked at ${hms(ed.mB)}. Now mark the start.` : "Mark a start and an end, drag across the recording, or click a yellow moment";
-    bar.innerHTML = play
-      + edBtn("⟦ Mark start<kbd>I</kbd>", true, "", "edMark(0)") + edBtn("Mark end ⟧<kbd>O</kbd>", true, "", "edMark(1)")
-      + edBtn(ic("plus") + " Add to Short", !!p, "Mark a start and an end first", "edAddPick()", "primary")
-      + edBtn("− Remove from Short", !!overlap, p ? "The marked stretch isn't in your Short" : "Mark the stretch to remove first", "edRemovePick()")
-      + `<i class="sep"></i>` + edBtn(ic("back") + " Back to Short", true, "", "edMode(false)")
-      + `<div style="flex-basis:100%"></div><span class="note">${esc(note)}</span>`;
-  }
-  edTick();
-}
-function edFit() { return Math.max(0.02, (($("#edtl")?.clientWidth || 1000) - 40) / ed.st.source_duration); }
-function edZoom(v) {
-  // Recording view: a log scale from "whole recording" to 60 px per second
-  if (ed.orig) { const fit = edFit(); ed.spps = fit * Math.pow(Math.max(1.01, 60 / fit), v / 100); } else ed.pps = v;
-  edDraw();
-}
-async function edSourceView() {
-  const z = $("#edzoom"), box = $("#edtl"), segs = ed.st.segments;
-  $("#edtlhint").innerHTML = ed.orig ? `<b style="color:var(--text)">Whole recording</b>: highlighted parts are in your Short. Drag on the recording or click a moment to add it.&nbsp;&nbsp;` : "";
-  if (!ed.orig) { z.min = 10; z.max = 160; z.value = ed.pps; edDraw(); return; }
-  const fit = edFit(), lo = Math.min(...segs.map(x => x[0])), hi = Math.max(...segs.map(x => x[1]));
-  if (!ed.spps) ed.spps = Math.min(60, Math.max(fit, (box.clientWidth - 40) / (hi - lo + 240))); // the Short ±2 min
-  z.min = 0; z.max = 100; z.value = Math.round(100 * Math.log(ed.spps / fit) / Math.log(Math.max(1.01, 60 / fit)));
-  edDraw(); box.scrollLeft = Math.max(0, (lo - 60) * ed.spps);
-  if (!ed.moments && ed.st.project_id) {
-    try { ed.moments = await api(`/v1/projects/${ed.st.project_id}/highlights?limit=100`); } catch { ed.moments = []; }
-    if (ed.orig) edDraw();
-  }
-}
-function edPlay() {
-  const v = $("#edvid");
-  if (ed.live && v.paused) { const segs = ed.st.segments, n = segs.length - 1; if (v.currentTime >= segs[n][1] - 0.1) edGoto(0); else ed.liveSeg = Math.max(0, edLivePart(v.currentTime)); }
-  v.paused ? v.play() : v.pause();
-}
-function edLiveSync() {
-  // Changed cuts play straight from the recording, part after part, until the next preview render
-  const want = !ed.orig && !!ed.dirtyCuts, v = $("#edvid"); if (!v || want === !!ed.live) return;
-  const t = edNow(); ed.live = want;
-  $("#edframe").classList.toggle("live", want); $("#edlive").hidden = !want;
-  if (!want) return;
-  v.pause(); v.src = `/v1/clips/${ed.st.id}/source`;
-  v.onloadedmetadata = () => edGoto(t);
-  $("#edstatus").textContent = "Live preview: no effects or music yet. Press Update preview to see the finished Short.";
-}
-function edLivePart(src) {
-  const segs = ed.st.segments, i = segs.findIndex(([a, b], k) => k >= (ed.liveSeg || 0) && src >= a - 0.05 && src < b);
-  return i >= 0 ? i : segs.findIndex(([a, b]) => src >= a - 0.05 && src < b);
-}
-function edGoto(t) {
-  // Move to time t of the Short (seconds), whichever video is showing
-  const v = $("#edvid");
-  if (ed.live) {
-    const so = edSegOut(), segs = ed.st.segments;
-    let i = so.findIndex(([a, b]) => t >= a && t < b); if (i < 0) i = t < (so[0]?.[0] || 0) ? 0 : segs.length - 1;
-    ed.liveSeg = i; v.currentTime = Math.min(segs[i][1] - 0.02, segs[i][0] + Math.max(0, t - so[i][0]));
-  } else if (ed.orig) {
-    const so = edSegOut(), i = so.findIndex(([a, b]) => t >= a && t <= b); if (i >= 0) v.currentTime = ed.st.segments[i][0] + (t - so[i][0]);
-  } else v.currentTime = t;
-}
-function edNow() {
-  const v = $("#edvid");
-  if (ed.live) { const i = edLivePart(v.currentTime || 0), so = edSegOut(); return i < 0 ? (ed.liveT || 0) : (ed.liveT = so[i][0] + (v.currentTime - ed.st.segments[i][0])); }
-  if (!ed.orig) return v.currentTime || 0;
-  // Original footage: map the source time back onto the Short's timeline when inside a part
-  const so = edSegOut(); const i = ed.st.segments.findIndex(([a, b]) => v.currentTime >= a && v.currentTime <= b);
-  return i < 0 ? 0 : so[i][0] + (v.currentTime - ed.st.segments[i][0]);
-}
-function edSrcLabel(t) {
-  const i = ed.st.segments.findIndex(([a, b]) => t >= a && t <= b);
-  return `${hms(t)} in the recording${i >= 0 ? ` · part ${i + 1}` : ""}`;
-}
-function edTick() {
-  const v = $("#edvid");
-  if (ed.live && !v.paused) { // jump over the gaps between parts
-    const segs = ed.st.segments, i = ed.liveSeg || 0;
-    if (v.currentTime >= segs[i][1] - 0.04) { if (i + 1 < segs.length) { ed.liveSeg = i + 1; v.currentTime = segs[i + 1][0]; } else v.pause(); }
-  }
-  const t = edNow(), src = v.currentTime || 0;
-  const tl = $("#edtime"); if (tl) tl.textContent = ed.orig ? edSrcLabel(src) : `${t.toFixed(1)} s / ${edTotal().toFixed(1)} s`;
-  const sp = $("#edsplitwrap button"); if (sp) sp.disabled = !edSplitOk();
-  const ph = $("#edph"); if (ph) ph.style.left = (ed.orig ? src * ed.spps : t * ed.pps) + "px";
-  edDrawText(t);
-  if (!$("#edvid").paused) requestAnimationFrame(edTick);
-}
-
-function edStyleBox(o) {
-  const s = ed.st, w = s.out_w, h = s.out_h, base = Math.min(w, h) * 0.085;
-  const size = ({ caps: base * 0.9, plain: base * 0.7, bar: w * 0.064 }[o.style] || base) * (o.size || 1);
-  const marginV = (h > w * 1.5 ? 0.2 : 0.1) * h;
-  let y = o.y;
-  if (y == null) y = o.style === "bar" ? (s.bar_h / 2) / h : o.style === "plain" ? 1 - (marginV + size / 2) / h : (marginV + size / 2) / h;
-  if (o.style === "bar") y = (s.bar_h / 2) / h;
-  return { size, y };
-}
-function edDrawText(t) {
-  const box = $("#edtext"); if (!box) return;
-  if (ed.orig) { box.innerHTML = ""; return; }
-  const scale = $("#edframe").clientWidth / ed.st.out_w;
-  box.innerHTML = ed.st.overlays.map((o, i) => {
-    if (t < o.start_s || t > o.end_s) return "";
-    const { size, y } = edStyleBox(o);
-    const upper = o.style === "hook" || o.style === "caps";
-    const color = o.color || (o.style === "bar" ? "#000" : "#fff");
-    const on = ed.sel?.kind === "txt" && ed.sel.i === i;
-    return `<div class="edov ed-${o.style} ${on ? "on" : ""}" data-i="${i}"
-      style="top:${y * 100}%;font-size:${size * scale}px;color:${color};${upper ? "text-transform:uppercase;" : ""}">${esc(o.text)}${on ? `<i class="edsz" title="Drag to resize"></i>` : ""}</div>`;
-  }).join("");
-  box.querySelectorAll(".edov").forEach(el => {
-    const i = +el.dataset.i;
-    el.onpointerdown = ev => ev.target.classList.contains("edsz") ? edDragSize(ev, i) : edDragY(ev, i);
-    el.onwheel = ev => { ev.preventDefault(); edSize(i, ev.deltaY < 0 ? 0.05 : -0.05); };
-  });
-}
-function edSize(i, step, value, fromSlider) {
-  const o = ed.st.overlays[i]; if (!o) return;
-  const v = value != null ? value : (o.size || 1) + step;
-  o.size = Math.round(Math.min(3, Math.max(0.4, v)) * 100) / 100; ed.dirty = true;
-  edDrawText(edNow());
-  if (!fromSlider) edInspector(); // keep the slider under the pointer while dragging it
-  else { const n = document.querySelector('#edinspector input[type=number][step="5"]'); n && (n.value = Math.round(o.size * 100)); }
-}
-function edDragSize(ev, i) {
-  ev.preventDefault(); ev.stopPropagation(); edSelect("txt", i);
-  const o = ed.st.overlays[i], y0 = ev.clientY, s0 = o.size || 1;
-  const move = e => edSize(i, null, s0 * Math.pow(1.006, e.clientY - y0), true);
-  const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); edInspector(); };
-  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
-}
-function edDragY(ev, i) {
-  ev.preventDefault(); edSelect("txt", i);
-  const fr = $("#edframe").getBoundingClientRect(); const o = ed.st.overlays[i]; if (o.style === "bar") return;
-  const move = e => { o.y = Math.min(0.97, Math.max(0.03, (e.clientY - fr.top) / fr.height)); ed.dirty = true; edDrawText(edNow()); edInspector(); };
-  const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
-  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
-}
-
-function edWave(env) {
-  // Mirrored loudness outline, stretched to the block it sits in
-  if (!env || env.length < 2) return "";
-  const n = env.length - 1, top = [], bot = [];
-  env.forEach((v, i) => { top.push(`${i},${(0.5 - v * 0.47).toFixed(3)}`); bot.unshift(`${i},${(0.5 + v * 0.47).toFixed(3)}`); });
-  return `<svg class="edwave" viewBox="0 0 ${n} 1" preserveAspectRatio="none"><polygon points="${top.concat(bot).join(" ")}"/></svg>`;
-}
-function edFilm(a, b, w) {
-  // Frames of the recording laid on a fixed time grid, so trimming only adds or drops tiles at the ends
-  if (w < 8 || b <= a) return "";
-  const pxs = w / (b - a), tile = 64, step = Math.max(0.5, Math.round(tile / pxs * 2) / 2);
-  let html = "";
-  for (let t = Math.floor(a / step) * step; t < b; t += step) {
-    const at = Math.min(ed.st.source_duration - 0.5, t + step / 2);
-    html += `<img loading="lazy" src="/v1/clips/${ed.st.id}/frame.jpg?t=${at.toFixed(1)}" style="left:${(t - a) * pxs}px;width:${step * pxs + 1}px" alt="">`;
-  }
-  return `<div class="edfilm">${html}</div>`;
-}
-function edLoadAudio() {
-  // Saved cuts come back mapped through slow-mo; unsaved ones 1:1, like the timeline draws them
-  const key = ed.dirtyCuts ? JSON.stringify(ed.st.segments) : "saved";
-  if (key === ed.audioKey) return;
-  ed.audioKey = key; clearTimeout(ed.audioTimer);
-  ed.audioTimer = setTimeout(async () => {
-    try {
-      const a = await api(`/v1/clips/${ed.st.id}/editor/audio`, { method: "POST", body: { segments: ed.dirtyCuts ? ed.st.segments : null } });
-      if (ed && ed.audioKey === key) { ed.audio = a; edDraw(); edInspector(); }
-    } catch (e) { /* waveforms are optional */ }
-  }, ed.audio ? 350 : 0);
-}
-
-function edDrawSource() {
-  const s = ed.st, src = s.source_duration, pps = ed.spps, W = Math.ceil(src * pps) + 40;
-  const step = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600].find(x => x * pps >= 70) || 3600;
-  let ruler = "";
-  for (let t = 0; t <= src; t += step) ruler += `<span style="left:${t * pps}px">${hms(t)}</span>`;
-  const parts = s.segments.map(([a, b], i) => `<div class="edblk seg src ${ed.sel?.kind === "seg" && ed.sel.i === i ? "on" : ""}" data-i="${i}" style="left:${a * pps}px;width:${Math.max(4, (b - a) * pps)}px" title="Part ${i + 1} of your Short: ${hms(a)} to ${hms(b)}">
-      ${edFilm(a, b, Math.max(4, (b - a) * pps))}<i class="h l" title="Drag left to add earlier footage"></i><span>${i + 1}</span><i class="h r" title="Drag right to add later footage"></i></div>`).join("");
-  const marks = (ed.mA != null && !ed.pick ? `<i class="edmark" data-l="start" style="left:${ed.mA * pps}px"></i>` : "")
-    + (ed.mB != null && !ed.pick ? `<i class="edmark" data-l="end" style="left:${ed.mB * pps}px"></i>` : "");
-  const pick = ed.pick ? `<div class="edblk pick" id="edpick" style="left:${ed.pick[0] * pps}px;width:${Math.max(2, (ed.pick[1] - ed.pick[0]) * pps)}px"></div>` : `<div class="edblk pick" id="edpick" hidden></div>`;
-  const lanes = [];
-  const moms = (ed.moments || []).map((m, k) => {
-    let lane = lanes.findIndex(end => end <= m.start_s); if (lane < 0) { lane = lanes.length; lanes.push(0); } lanes[lane] = m.end_s + 2 / pps;
-    const inShort = s.segments.some(([a, b]) => m.start_s < b && m.end_s > a);
-    const title = m.ai?.title || `Moment at ${hms(m.peak_s)}`;
-    return `<div class="edblk mom ${inShort ? "in" : ""} ${ed.sel?.kind === "mom" && ed.sel.i === k ? "on" : ""}" data-k="${k}" style="left:${m.start_s * pps}px;width:${Math.max(4, (m.end_s - m.start_s) * pps)}px;top:${4 + lane * 26}px"
-      title="#${m.rank} ${esc(title)}${m.tier ? " (" + m.tier + ")" : ""}${inShort ? " · already in this Short" : ""}"><span>#${m.rank} ${esc(title)}</span></div>`;
-  }).join("");
-  $("#edtl").innerHTML = `<div class="edinner" style="width:${W}px">
-    <div class="edruler" onpointerdown="edScrub(event)">${ruler}</div>
-    <div class="edtrack" id="edrec" style="height:48px"><b class="edlab">Full recording: orange = already in your Short</b>${parts}${pick}${marks}</div>
-    <div class="edtrack" style="height:${Math.max(1, lanes.length) * 26 + 8}px"><b class="edlab">Moments SPHURA found (click one to mark it)</b>${ed.moments ? moms || `<span class="ednone">No other moments</span>` : `<span class="ednone">Loading…</span>`}</div>
-    <div id="edph" class="edph" style="left:${($("#edvid")?.currentTime || 0) * pps}px"><i class="edphh" title="Drag to move through the recording" onpointerdown="edScrub(event)"></i></div></div>`;
-  $("#edtl").querySelectorAll(".edblk.seg").forEach(el => el.onpointerdown = ev => edDragSeg(ev, +el.dataset.i));
-  $("#edtl").querySelectorAll(".edblk.mom").forEach(el => el.onpointerdown = ev => { ev.preventDefault(); edPickMoment(+el.dataset.k); });
-  $("#edrec").onpointerdown = ev => { if (ev.target.id === "edrec" || ev.target.classList.contains("edlab")) edSelectRange(ev); };
-  $("#edtl").querySelectorAll(".edtrack:not(#edrec)").forEach(el => el.onpointerdown = ev => { if (ev.target === el || ev.target.classList.contains("edlab") || ev.target.classList.contains("ednone")) edScrub(ev); });
-}
-function edSrcAt(clientX) {
-  const r = $("#edtl .edinner").getBoundingClientRect();
-  return Math.min(ed.st.source_duration, Math.max(0, (clientX - r.left) / ed.spps));
-}
-function edSelectRange(ev) {
-  // Drag across the recording to mark a stretch to add; a plain click just moves there
-  if (ev.button !== 0) return;
-  ev.preventDefault();
-  const v = $("#edvid"), t0 = edSrcAt(ev.clientX), box = $("#edtl");
-  v.pause(); document.body.classList.add("edscrub"); edSeekTo(ev.clientX);
-  let t1 = t0;
-  const move = e => {
-    const b = box.getBoundingClientRect();
-    if (e.clientX > b.right - 30) box.scrollLeft += 12; else if (e.clientX < b.left + 30) box.scrollLeft -= 12;
-    t1 = edSrcAt(e.clientX); edSeekTo(e.clientX);
-    const el = $("#edpick"), a = Math.min(t0, t1), w = Math.abs(t1 - t0);
-    el.hidden = false; el.style.left = a * ed.spps + "px"; el.style.width = Math.max(2, w * ed.spps) + "px";
-  };
-  const up = () => {
-    window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
-    document.body.classList.remove("edscrub");
-    if (Math.abs(t1 - t0) >= 0.3) { edSetMarks(Math.min(t0, t1), Math.max(t0, t1)); ed.sel = { kind: "pick", i: 0 }; }
-    else if (ed.sel?.kind === "pick") { edSetMarks(null, null); ed.sel = null; }
-    edDraw(); edInspector();
-  };
-  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
-}
-function edPickMoment(k) {
-  const m = ed.moments[k]; edSetMarks(m.start_s, m.end_s);
-  $("#edvid").currentTime = m.start_s; edSelect("mom", k); setTimeout(edTick, 80);
-}
-function edSetMarks(a, b) {
-  ed.mA = a; ed.mB = b;
-  ed.pick = a != null && b != null && b - a >= 0.3 ? [a, b] : null;
-}
-function edMark(j) {
-  // Mark start (I) / Mark end (O) at the playhead; a mark on the wrong side of the other clears it
-  if (!ed.orig) return;
-  const t = $("#edvid").currentTime || 0;
-  let a = ed.mA ?? null, b = ed.mB ?? null;
-  if (j === 0) { a = t; if (b != null && b - a < 0.3) b = null; } else { b = t; if (a != null && b - a < 0.3) a = null; }
-  edSetMarks(a, b);
-  if (ed.pick) edSelect("pick", 0); else { ed.sel = null; edDraw(); edInspector(); }
-}
-function edRemovePick() {
-  // Cut the marked stretch out of every part it overlaps
-  const [a, b] = ed.pick, out = [];
-  for (const [x, y] of ed.st.segments) {
-    if (b <= x || a >= y) { out.push([x, y]); continue; }
-    if (a - x >= 0.3) out.push([x, a]);
-    if (y - b >= 0.3) out.push([b, y]);
-  }
-  if (!out.length) return toast("That would remove everything. A Short needs at least one part.");
-  ed.st.segments = out; ed.dirty = ed.dirtyCuts = true; edSetMarks(null, null); ed.sel = null;
-  edDraw(); edInspector(); toast("Removed from your Short. Press Update preview to see it.");
-}
-function edAddPick() {
-  // Parts play in recording order; overlapping or touching parts merge into one
-  const [a, b] = ed.pick, segs = [...ed.st.segments.map(x => [...x]), [a, b]].sort((x, y) => x[0] - y[0]);
-  const merged = [];
-  for (const sg of segs) { const last = merged[merged.length - 1]; if (last && sg[0] <= last[1] + 0.05) last[1] = Math.max(last[1], sg[1]); else merged.push(sg); }
-  const total = merged.reduce((t, [x, y]) => t + y - x, 0);
-  if (total > 180) return toast(`That would make the Short ${Math.round(total)} s long; the most is 180 s. Trim it first.`);
-  ed.st.segments = merged; ed.dirty = ed.dirtyCuts = true; edSetMarks(null, null);
-  const i = merged.findIndex(([x, y]) => a >= x - 0.01 && a <= y);
-  edSelect("seg", i < 0 ? 0 : i);
-  toast("Added to your Short. Press Update preview to see it.");
-}
-
-function edDraw() {
-  if (ed.orig) return edDrawSource();
-  edLiveSync();
-  const s = ed.st, total = Math.max(edTotal(), 1), pps = ed.pps, W = Math.ceil(total * pps) + 40;
-  const so = edSegOut();
-  let ruler = "";
-  const step = pps >= 60 ? 1 : pps >= 25 ? 2 : 5;
-  for (let t = 0; t <= total; t += step) ruler += `<span style="left:${t * pps}px">${t}s</span>`;
-  const teaser = s.teaser_out > 0.05 ? `<div class="edblk teaser" style="left:0;width:${s.teaser_out * pps}px;height:40px" title="Cold open (the climax first)">Cold open</div>` : "";
-  const segs = so.map(([a, b], i) => `<div class="edblk seg ${ed.sel?.kind === "seg" && ed.sel.i === i ? "on" : ""}" data-i="${i}" style="left:${a * pps}px;width:${Math.max(6, (b - a) * pps)}px">
-      ${edFilm(s.segments[i][0], s.segments[i][1], Math.max(6, (b - a) * pps))}<i class="h l" title="Drag left to add earlier footage, right to cut the start"></i><span>Part ${i + 1} · ${(s.segments[i][1] - s.segments[i][0]).toFixed(1)}s</span><i class="h r" title="Drag right to add later footage, left to cut the end"></i></div>`).join("");
-  const lanes = []; // stack overlapping text blocks in lanes
-  const txt = s.overlays.map((o, i) => {
-    let lane = lanes.findIndex(end => end <= o.start_s + 0.01); if (lane < 0) { lane = lanes.length; lanes.push(0); } lanes[lane] = o.end_s;
-    return `<div class="edblk txt ${ed.sel?.kind === "txt" && ed.sel.i === i ? "on" : ""}" data-i="${i}" style="left:${o.start_s * pps}px;width:${Math.max(8, (Math.min(o.end_s, total) - o.start_s) * pps)}px;top:${lane * 26}px">
-      <span>${esc(o.text)}</span><i class="h r"></i></div>`; }).join("");
-  edLoadAudio();
-  const au = ed.audio, waves = au && au.parts.length === so.length ? au.parts : [];
-  const tzA = s.teaser_out > 0.05 ? `<div class="edblk aud tz" style="left:0;width:${s.teaser_out * pps}px" title="Game audio of the cold open">${edWave(au && au.teaser)}<span>Cold open</span></div>` : "";
-  const aud = so.map(([a, b], i) => `<div class="edblk aud ${ed.sel?.kind === "seg" && ed.sel.i === i ? "on" : ""}" data-i="${i}" style="left:${a * pps}px;width:${Math.max(6, (b - a) * pps)}px" title="Game audio of part ${i + 1}: trimmed together with its video">
-      ${edWave(waves[i])}<i class="h l"></i><span>Part ${i + 1} audio</span><i class="h r"></i></div>`).join("");
-  const m = au && au.music;
-  let mus = "";
-  if (m) {
-    const w = Math.max(6, (total - m.in_s) * pps);
-    const beats = m.beats.filter(t => t >= m.in_s && t <= total).map(t => `<i class="edbeat" style="left:${(t - m.in_s) * pps}px"></i>`).join("");
-    const dip = m.dip ? `<i class="eddip" style="left:${(m.dip[0] - m.in_s) * pps}px;width:${Math.max(2, (m.dip[1] - m.dip[0]) * pps)}px" title="Music drops out for the key hit"></i>` : "";
-    mus = `<div class="edblk mus ${ed.sel?.kind === "music" ? "on" : ""}" style="left:${m.in_s * pps}px;width:${w}px" title="${esc(m.name)}">
-      ${edWave(m.env)}${dip}${beats}<span>♪ ${esc(m.name)}${m.bpm ? ` · ${m.bpm} BPM` : ""}</span></div>`;
-  } else mus = `<span class="ednone">${au ? "No music on this Short" : "Loading…"}</span>`;
-  $("#edtl").innerHTML = `<div class="edinner" style="width:${W}px">
-    <div class="edruler" onpointerdown="edScrub(event)">${ruler}</div>
-    <div class="edtrack" style="height:48px"><b class="edlab">Video</b>${teaser}${segs}</div>
-    <div class="edtrack" style="height:34px"><b class="edlab">Game audio</b>${tzA}${aud}</div>
-    <div class="edtrack" style="height:34px"><b class="edlab">Music</b>${mus}</div>
-    <div class="edtrack" style="height:${Math.max(1, lanes.length) * 26 + 8}px"><b class="edlab">Text</b>${txt}</div>
-    <div id="edph" class="edph" style="left:${edNow() * pps}px"><i class="edphh" title="Drag to move through the Short" onpointerdown="edScrub(event)"></i></div></div>`;
-  $("#edtl").querySelectorAll(".edtrack").forEach(el => el.onpointerdown = ev => { if (ev.target === el || ev.target.classList.contains("edlab") || ev.target.classList.contains("ednone")) edScrub(ev); });
-  $("#edtl").querySelectorAll(".edblk.seg, .edblk.aud:not(.tz)").forEach(el => el.onpointerdown = ev => edDragSeg(ev, +el.dataset.i));
-  const mb = $("#edtl .edblk.mus"); if (mb) mb.onpointerdown = ev => { ev.preventDefault(); edSelect("music", 0); };
-  $("#edtl").querySelectorAll(".edblk.txt").forEach(el => el.onpointerdown = ev => edDragTxt(ev, +el.dataset.i));
-}
-function edSeekTo(clientX) {
-  if (ed.orig) {
-    const t = edSrcAt(clientX); $("#edvid").currentTime = t;
-    $("#edph").style.left = (t * ed.spps) + "px"; $("#edtime") && ($("#edtime").textContent = edSrcLabel(t));
-    return;
-  }
-  const r = $("#edtl .edinner").getBoundingClientRect(), total = edTotal();
-  const t = Math.min(total, Math.max(0, (clientX - r.left) / ed.pps));
-  edGoto(t);
-  // Move the playhead and text right away; the video frame follows when it has seeked
-  $("#edph").style.left = (t * ed.pps) + "px";
-  $("#edtime") && ($("#edtime").textContent = `${t.toFixed(1)} s / ${total.toFixed(1)} s`);
-  const sp = $("#edsplitwrap button"); if (sp) sp.disabled = !edSplitOk();
-  edDrawText(t);
-}
-function edScrub(ev) {
-  // Click or drag on the ruler, the playhead or an empty part of a track to move through the Short
-  if (ev.button !== 0) return;
-  ev.preventDefault();
-  const v = $("#edvid"), playing = !v.paused, box = $("#edtl");
-  v.pause(); document.body.classList.add("edscrub"); edSeekTo(ev.clientX);
-  const move = e => {
-    const b = box.getBoundingClientRect(); // scroll along when dragging past either edge
-    if (e.clientX > b.right - 30) box.scrollLeft += 12; else if (e.clientX < b.left + 30) box.scrollLeft -= 12;
-    edSeekTo(e.clientX);
-  };
-  const up = () => {
-    window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
-    document.body.classList.remove("edscrub"); if (playing) v.play(); else setTimeout(edTick, 80);
-  };
-  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
-}
-function edDrag(ev, onMove, onUp) {
-  ev.preventDefault(); ev.stopPropagation(); const x0 = ev.clientX;
-  const scale = ed.orig ? ed.spps : ed.pps, move = e => onMove((e.clientX - x0) / scale);
-  const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); onUp && onUp(); edDraw(); edInspector(); };
-  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
-}
-function edDragSeg(ev, i) {
-  edSelect("seg", i);
-  const edge = ev.target.classList.contains("l") ? "l" : ev.target.classList.contains("r") ? "r" : null;
-  if (!edge) return;
-  const segs = ed.st.segments, seg = segs[i], [a0, b0] = seg, src = ed.st.source_duration;
-  // Grow up to the neighbouring part in the recording, so no footage is used twice
-  const lo = Math.max(0, ...segs.filter((x, k) => k !== i && x[1] <= a0 + 0.01).map(x => x[1]));
-  const hi = Math.min(src, ...segs.filter((x, k) => k !== i && x[0] >= b0 - 0.01).map(x => x[0]));
-  const tv = ed.orig ? $("#edvid") : $("#edtrimv"), lab = $("#edtrimlab");
-  if (!ed.orig && !tv.src) tv.src = `/v1/clips/${ed.st.id}/source`;
-  if (!ed.orig) tv.hidden = false;
-  let want = null, busy = false;
-  const show = t => { // one seek at a time keeps the preview responsive
-    want = t;
-    if (tv.readyState < 1) { tv.onloadedmetadata = () => show(want); return; } // not loaded yet: seek once it is
-    if (busy) return;
-    busy = true; tv.currentTime = t;
-    const done = () => { busy = false; if (Math.abs(want - tv.currentTime) > 0.05) show(want); };
-    tv.onseeked = done; setTimeout(() => busy && done(), 400); // never get stuck on a lost event
-  };
-  const label = () => {
-    const t = edge === "l" ? seg[0] : seg[1], grown = edge === "l" ? a0 - seg[0] : seg[1] - b0;
-    lab.hidden = false;
-    lab.textContent = `Part ${i + 1} ${edge === "l" ? "starts" : "ends"} at ${hms(t)} · ${(seg[1] - seg[0]).toFixed(1)} s`
-      + (Math.abs(grown) >= 0.05 ? ` (${grown > 0 ? "+" : "−"}${Math.abs(grown).toFixed(1)} s)` : "")
-      + ((edge === "l" ? seg[0] <= lo + 0.01 : seg[1] >= hi - 0.01) ? (edge === "l" ? (lo > 0 ? " · reached the previous part" : " · start of the recording") : (hi < src ? " · reached the next part" : " · end of the recording")) : "");
-  };
-  show(edge === "l" ? a0 : b0); label();
-  edDrag(ev, d => {
-    if (edge === "l") seg[0] = Math.min(Math.max(lo, a0 + d), seg[1] - 0.3); else seg[1] = Math.max(Math.min(hi, b0 + d), seg[0] + 0.3);
-    ed.dirty = ed.dirtyCuts = true;
-    show(edge === "l" ? seg[0] : seg[1]); label();
-    edDraw(); edInspector();
-  }, () => {
-    if (!ed.orig) tv.hidden = true; lab.hidden = true;
-    setTimeout(() => { // land the playhead on the new edge so Play starts there
-      if (ed.orig) return;
-      edLiveSync(); const so = edSegOut()[i]; if (!so) return;
-      const t = edge === "l" ? so[0] : Math.max(so[0], so[1] - 1);
-      const v = $("#edvid"); if (v.readyState >= 1) edGoto(t); else v.onloadedmetadata = () => edGoto(t);
-      setTimeout(edTick, 120);
-    }, 0);
-  });
-}
-function edDragTxt(ev, i) {
-  edSelect("txt", i);
-  const o = ed.st.overlays[i], s0 = o.start_s, e0 = o.end_s, total = edTotal(), resize = ev.target.classList.contains("r");
-  edDrag(ev, d => {
-    if (resize) o.end_s = Math.max(o.start_s + 0.2, Math.min(total, e0 + d));
-    else { const len = e0 - s0; o.start_s = Math.max(0, Math.min(total - len, s0 + d)); o.end_s = o.start_s + len; }
-    ed.dirty = true; edDraw(); edDrawText(edNow());
-  });
-}
-function edSelect(kind, i) { ed.sel = { kind, i }; edDraw(); edInspector(); edDrawText(edNow()); }
-
-function edInspector() {
-  const s = ed.st, el = $("#edinspector"); if (!el) return;
-  let html = "";
-  if (ed.sel?.kind === "txt" && s.overlays[ed.sel.i]) {
-    const o = s.overlays[ed.sel.i], i = ed.sel.i;
-    html = `<h2>Text</h2><textarea rows="2" style="width:100%" oninput="ed.st.overlays[${i}].text=this.value;ed.dirty=true;edDraw();edDrawText(edNow())">${esc(o.text)}</textarea>
-      <div class="edrow"><label>Style</label><select onchange="ed.st.overlays[${i}].style=this.value;ed.dirty=true;edDrawText(edNow())">${Object.entries(ED_STYLES).filter(([k]) => k !== "bar" || s.style === "meme" || s.caption_bar).map(([k, l]) => `<option value="${k}" ${k === o.style ? "selected" : ""}>${l}</option>`).join("")}</select></div>
-      <div class="edrow"><label>Shows</label><input type="number" step="0.1" value="${o.start_s.toFixed(1)}" onchange="edSetTime(${i},'start_s',this.value)"> to <input type="number" step="0.1" value="${o.end_s.toFixed(1)}" onchange="edSetTime(${i},'end_s',this.value)"> s</div>
-      <div class="edrow"><label>Size</label><button title="Smaller" onclick="edSize(${i},-0.1)">A−</button>
-        <input type="number" min="40" max="300" step="5" style="width:64px" value="${Math.round((o.size || 1) * 100)}" onchange="edSize(${i},null,this.value/100)"> %
-        <button title="Bigger" onclick="edSize(${i},0.1)">A+</button></div>
-      <div class="edrow"><label></label>${[["S", 0.7], ["M", 1], ["L", 1.4], ["XL", 1.9]].map(([l, v]) =>
-        `<button class="${Math.abs((o.size || 1) - v) < 0.01 ? "primary" : ""}" onclick="edSize(${i},null,${v})">${l}</button>`).join("")}</div>
-      <div class="edrow"><label></label><input type="range" min="0.4" max="3" step="0.05" value="${o.size || 1}" oninput="edSize(${i},null,+this.value,true)"></div>
-      <div class="small muted">Tip: drag the corner handle of the text on the preview, or scroll over it.</div>
-      <div class="edrow"><label>Colour</label><input type="color" value="${o.color || "#ffffff"}" oninput="ed.st.overlays[${i}].color=this.value;ed.dirty=true;edDrawText(edNow())">
-        <button onclick="ed.st.overlays[${i}].color='';ed.dirty=true;edInspector();edDrawText(edNow())">Default</button></div>
-      <div class="edrow"><label>Position</label>${o.style === "bar" ? `<span class="small muted">In the caption bar</span>` : `<span class="small muted">${o.y == null ? "Default" : Math.round(o.y * 100) + "% from top"} · drag it on the preview</span>
-        <button onclick="ed.st.overlays[${i}].y=null;ed.dirty=true;edInspector();edDrawText(edNow())">Reset</button>`}</div>
-      <div class="row" style="margin-top:10px"><button onclick="edJump(${o.start_s})">Go to</button><div class="grow"></div><button onclick="edDelete()">Delete text</button></div>`;
-  } else if ((ed.sel?.kind === "pick" || ed.sel?.kind === "mom") && ed.pick) {
-    const [a, b] = ed.pick, m = ed.sel.kind === "mom" ? ed.moments[ed.sel.i] : null;
-    const total = s.segments.reduce((t, [x, y]) => t + y - x, 0);
-    const overlap = s.segments.findIndex(([x, y]) => a < y && b > x);
-    html = `<h2>${m ? `Moment #${m.rank}` : "Add to your Short"}</h2>
-      ${m ? `<div><b>${esc(m.ai?.title || "Moment at " + hms(m.peak_s))}</b> ${m.tier ? `<span class="badge">${esc(m.tier)}</span>` : ""}</div>
-        ${m.ai?.what_happens ? `<div class="small muted" style="margin-top:4px">${esc(m.ai.what_happens)}</div>` : ""}` : ""}
-      <div class="edrow"><label>Start</label><input type="number" step="0.1" value="${a.toFixed(1)}" onchange="edSetMarks(Math.min(+this.value,ed.pick[1]-0.3),ed.pick[1]);edDraw();edInspector()"> <span class="small muted">${hms(a)}</span></div>
-      <div class="edrow"><label>End</label><input type="number" step="0.1" value="${b.toFixed(1)}" onchange="edSetMarks(ed.pick[0],Math.max(+this.value,ed.pick[0]+0.3));edDraw();edInspector()"> <span class="small muted">${hms(b)}</span></div>
-      <div class="small muted" style="margin-top:6px">${(b - a).toFixed(1)} s · your Short would be about ${Math.round(total + b - a)} s before effects.
-        ${overlap >= 0 ? `<br>Overlaps part ${overlap + 1}: they'll be joined into one part.` : ""}
-        Parts play in the order they happen in the recording.</div>
-      <div class="row" style="margin-top:10px"><button class="primary" onclick="edAddPick()">＋ Add to Short</button>
-        <button onclick="$('#edvid').currentTime=ed.pick[0];$('#edvid').play()">▶ Play it</button><div class="grow"></div>
-        <button onclick="edSetMarks(null,null);ed.sel=null;edDraw();edInspector()">Clear marks</button></div>`;
-  } else if (ed.sel?.kind === "music" && ed.audio?.music) {
-    const m = ed.audio.music, kind = { ai: "AI music", score: "SPHURA score", track: "Your track" }[m.kind];
-    html = `<h2>Music</h2><div><b>${esc(m.name)}</b></div>
-      <div class="small muted">${[kind, m.mood, m.bpm && m.bpm + " BPM"].filter(Boolean).map(esc).join(" · ")}</div>
-      <div class="edrow"><label>Starts</label><span class="small">${m.in_s > 0.05 ? `at ${m.in_s.toFixed(1)} s, after the cold open` : "at the start"}</span></div>
-      <div class="edrow"><label>Volume</label><span class="small">${m.gain_db != null ? `${m.gain_db} dB, ` : ""}${m.duck ? "backs off when the game gets loud" : "music-led: the game audio sits underneath"}</span></div>
-      ${m.dip ? `<div class="edrow"><label>Drop</label><span class="small">Drops out at ${m.dip[0].toFixed(1)} s so the key hit lands clean</span></div>` : ""}
-      ${m.credit ? `<div class="edrow"><label>Credit</label><span class="small">${esc(m.credit)}</span></div>` : ""}
-      <div class="small muted" style="margin-top:8px">The ticks on the track are its beats; cuts and the key hit are lined up with them.
-        ${ed.dirtyCuts ? "<br><b>Your cut changes re-sync the same song when you update the preview.</b>" : ""}</div>
-      <div class="small muted" style="margin-top:8px">To change the song or its volume, use <b>Change</b> under this Short on the Shorts page.</div>`;
-  } else if (ed.sel?.kind === "seg" && s.segments[ed.sel.i]) {
-    const [a, b] = s.segments[ed.sel.i], i = ed.sel.i;
-    html = `<h2>Part ${i + 1}</h2><div class="small muted">From the original recording: ${hms(a)} to ${hms(b)}. Its video and game audio are trimmed together.</div>
-      <div class="edrow"><label>Starts</label><button onclick="edNudge(${i},0,-1)">−1s</button><button onclick="edNudge(${i},0,-0.1)">−0.1</button>
-        <input type="number" step="0.1" value="${a.toFixed(1)}" onchange="edSetSeg(${i},0,this.value)"><button onclick="edNudge(${i},0,0.1)">+0.1</button><button onclick="edNudge(${i},0,1)">+1s</button></div>
-      <div class="edrow"><label>Ends</label><button onclick="edNudge(${i},1,-1)">−1s</button><button onclick="edNudge(${i},1,-0.1)">−0.1</button>
-        <input type="number" step="0.1" value="${b.toFixed(1)}" onchange="edSetSeg(${i},1,this.value)"><button onclick="edNudge(${i},1,0.1)">+0.1</button><button onclick="edNudge(${i},1,1)">+1s</button></div>
-      <div class="small faint" style="margin:8px 0">Or drag its edges in the timeline: outward adds footage, inward cuts.</div>
-      <div class="row"><div class="grow"></div><button ${s.segments.length < 2 ? "disabled" : ""} onclick="edDelete()">🗑 Delete part ${i + 1}</button></div>`;
-  } else if (ed.orig) html = `<h2>Add footage</h2><div class="small muted">Click a yellow moment, or mark a start <kbd>I</kbd> and end <kbd>O</kbd>, then press <b>Add to Short</b>. It goes in where it happens in the recording.</div>
-      <details style="margin-top:8px" class="small"><summary>More tips</summary><ol class="edhelp">
-      <li>Drag across the recording track to mark a stretch.</li>
-      <li>To take something <b>out</b>, mark it and press <b>Remove from Short</b>.</li>
-      <li>Go back to <b>Short</b>, then <b>Update preview</b> to watch the result.</li></ol></details>`;
-  else html = `<h2>Selection</h2><div class="small muted">Click a part, a text or the music in the timeline to change it.</div>
-      <details style="margin-top:8px" class="small"><summary>Editing tips</summary><ol class="edhelp">
-      <li><b>Longer or shorter:</b> drag a part's edge outward to add footage, inward to cut.</li>
-      <li><b>Cut the middle:</b> split <kbd>S</kbd> at both ends, select the piece, delete <kbd>Del</kbd>.</li>
-      <li><b>Text:</b> move the playhead and press <b>Text</b>. Drag it on the preview to move it.</li>
-      <li><kbd>Space</kbd> plays and pauses. Changes show after <b>Update preview</b>.</li></ol></details>`;
-  if (s.style !== "meme") html += `<div class="sect"><h2>Layout</h2>
-    <label class="small" style="display:block"><input type="checkbox" ${s.caption_bar ? "checked" : ""} onchange="ed.st.caption_bar=this.checked;ed.dirty=ed.dirtyBar=true;edInspector()"> White caption bar on top (meme-style)</label>
-    ${ed.dirtyBar ? `<div class="small" style="color:var(--accent2)">Click "Update preview" to see the new layout and its caption.</div>` : ""}</div>`;
-  html += `<div class="sect"><h2>Effects</h2><div class="small" style="margin-bottom:6px">${esc(s.fx_label || "")}</div>
-    ${s.toggles.map(k => `<label class="small" style="display:block"><input type="checkbox" ${s.fx_off.includes(k) ? "" : "checked"} onchange="edFx('${k}',this.checked)"> ${FX_NAMES[k] || k}</label>`).join("")}
-    ${s.music ? `<div class="small muted" style="margin-top:8px">♪ ${esc(s.music)} (change it on the Shorts page)</div>` : ""}
-    <div class="small faint" style="margin-top:8px">Applied when you update the preview or export.</div></div>`;
-  el.innerHTML = html; edToolbar();
-}
-function edJump(t) { if (ed.orig) edMode(false); edGoto(t + 0.05); setTimeout(edTick, 60); }
-function edSetTime(i, k, v) { const o = ed.st.overlays[i]; o[k] = Math.max(0, +v); if (o.end_s <= o.start_s) o.end_s = o.start_s + 0.5; ed.dirty = true; edDraw(); edDrawText(edNow()); }
-function edSetSeg(i, j, v) { const seg = ed.st.segments[i]; seg[j] = Math.max(0, Math.min(ed.st.source_duration, +v)); if (seg[1] - seg[0] < 0.3) seg[j] = j ? seg[0] + 0.3 : seg[1] - 0.3; ed.dirty = ed.dirtyCuts = true; edDraw(); edInspector(); if (ed.orig) $("#edvid").currentTime = seg[j]; }
-function edNudge(i, j, d) { edSetSeg(i, j, ed.st.segments[i][j] + d); }
-function edFx(k, on) { const off = new Set(ed.st.fx_off); on ? off.delete(k) : off.add(k); ed.st.fx_off = [...off]; ed.dirty = ed.dirtyFx = true; }
-function edAddText() {
-  const t = Math.min(edNow(), Math.max(0, edTotal() - 0.5));
-  ed.st.overlays.push({ text: "Your text", start_s: +t.toFixed(2), end_s: +Math.min(edTotal(), t + 2.5).toFixed(2), style: "plain", y: 0.72, size: 1, color: "" });
-  ed.dirty = true; edSelect("txt", ed.st.overlays.length - 1);
-  setTimeout(() => { const ta = document.querySelector("#edinspector textarea"); ta && (ta.focus(), ta.select()); }, 30);
-}
-function edSplit() {
-  const t = edNow(), so = edSegOut(), i = so.findIndex(([a, b]) => t > a + 0.3 && t < b - 0.3);
-  if (i < 0) return toast("Put the playhead inside a part (not at its edge) to split it");
-  const [a, b] = ed.st.segments[i], cut = a + (t - so[i][0]);
-  ed.st.segments.splice(i, 1, [a, cut], [cut, b]); ed.dirty = ed.dirtyCuts = true; edSelect("seg", i + 1);
-}
-function edDelete() {
-  if (!ed.sel || !["txt", "seg"].includes(ed.sel.kind)) return; // only text and parts can be deleted here
-  if (ed.sel.kind === "txt") ed.st.overlays.splice(ed.sel.i, 1);
-  else { if (ed.st.segments.length < 2) return toast("A Short needs at least one part"); ed.st.segments.splice(ed.sel.i, 1); ed.dirtyCuts = true; }
-  ed.dirty = true; ed.sel = null; edDraw(); edInspector(); edDrawText(edNow());
-}
-
-async function edRender(kind, quiet) {
-  if (ed.busy) return; ed.busy = true;
-  const st = $("#edstatus"); st.innerHTML = `<span class="spin"></span> ${kind === "draft" ? "Rendering preview…" : "Saving and exporting…"}`;
-  try {
-    const body = { render: kind };
-    if (!quiet) { body.segments = ed.st.segments; body.overlays = ed.st.overlays; body.fx_off = ed.st.fx_off; body.caption_bar = ed.st.caption_bar; }
-    const r = await api(`/v1/clips/${ed.st.id}/editor`, { method: "PUT", body });
-    for (;;) {
-      await new Promise(res => setTimeout(res, 1000));
-      const j = await api(`/v1/jobs/${r.job_id}`);
-      if (!$("#edstatus")) return;
-      st.innerHTML = `<span class="spin"></span> ${kind === "draft" ? "Rendering preview" : "Exporting"} ${Math.round((j.progress || 0) * 100)}%`;
-      if (j.status === "succeeded") break;
-      if (j.status === "failed" || j.status === "cancelled") throw new Error(j.error || "render failed");
-    }
-    const keepSel = ed.sel, t = edNow();
-    ed.st = await api(`/v1/clips/${ed.st.id}/editor`); ed.dirty = ed.dirtyCuts = ed.dirtyFx = ed.dirtyBar = false; ed.sel = keepSel;
-    ed.audioKey = null; // cuts, speed and music may have changed
-    if (kind === "final") toast("Saved and exported");
-    renderEditor();
-    $("#edstatus").textContent = kind === "draft" ? "Preview updated" : "Saved and exported to your Shorts folder";
-    const v = $("#edvid"); v.onloadeddata = () => { v.currentTime = Math.min(t, ed.st.duration); edTick(); };
-  } catch (e) { st.innerHTML = `<span class="err">${esc(e.message)}</span>`; }
-  finally { ed.busy = false; }
-}
-document.addEventListener("keydown", e => {
-  if (!ed || !$("#edtl") || ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
-  if (e.code === "Space") { e.preventDefault(); edPlay(); }
-  else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); edDelete(); }
-  else if (e.key === "s" || e.key === "S") edSplit();
-  else if (ed.orig && (e.key === "i" || e.key === "I")) edMark(0);
-  else if (ed.orig && (e.key === "o" || e.key === "O")) edMark(1);
-});
-
-
-
+// ---------- Timeline editor: web/editor.js ----------
 
 // ---------- Voice-over ----------
 const VO = { status: null, timer: null };

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import hashlib
+import json
 import logging
 import math
 import re
@@ -13,7 +15,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sphura.application.queries import QueryService
-from sphura.domain.errors import InvalidMediaError, NotFoundError, SphuraError
+from sphura.domain.clip_codec import clip_to_dict
+from sphura.domain.errors import ConflictError, InvalidMediaError, NotFoundError, SphuraError
 from sphura.domain.models import (
     AspectRatio,
     Clip,
@@ -39,6 +42,7 @@ from sphura.pipeline.effects import (
     plan_music,
 )
 from sphura.pipeline.effects import _anchor as effects_anchor
+from sphura.pipeline.effects import _to_clip as effects_to_clip
 from sphura.pipeline.fx_context import LABELS, TOGGLES, classify, filter_off
 from sphura.pipeline.music_picker import library_key, pick_music
 from sphura.pipeline.music_prompt import write_music_prompt
@@ -393,7 +397,8 @@ class ClipService:
         kind = classify(self._ctx[0])
         fx = plan_effects(clip, peak_s, tl, wav, kind)
         voice = [e for e in clip.effects if e["type"] == "voiceover"]  # narration stays
-        clip.effects = filter_off(fx, list(clip.publish.get("fx_off") or [])) + voice
+        fx = filter_off(fx, list(clip.publish.get("fx_off") or []))
+        clip.effects = _keep_user_speed(clip, fx) + voice
         clip.crop_path = []  # the teaser adds footage the camera must cover
 
     def _apply_music(self, clip: Clip, tracks: list[MusicTrack], reroll: bool = False) -> None:
@@ -698,13 +703,39 @@ class ClipService:
             "teaser_out": round(clip.to_output_time(_teaser_len(clip)), 3),
             "duration": round(clip.output_duration_s, 3),
             "overlays": [{"text": o.text, "start_s": o.start_s, "end_s": o.end_s,
-                          "style": o.style, "y": o.y, "size": o.size, "color": o.color}
+                          "style": o.style, "y": o.y, "size": o.size, "color": o.color,
+                          "owner": o.owner}
                          for o in clip.overlays],
             "fx_off": list(clip.publish.get("fx_off") or []),
             "fx_kind": kind, "fx_label": LABELS.get(kind, ""), "toggles": list(TOGGLES),
             "caption_bar": bool(clip.publish.get("caption_bar")),
             "music": gen.get("label") or (Path(music["path"]).stem if music else None),
+            "version": clip.version,
+            "draft_fresh": self._draft_key(clip) == draft_key(clip),
+            "source_missing": not Path(asset.source_uri).is_file(),
+            "source_path": asset.source_uri,
+            "asset_id": asset.id,
+            "teaser_s": round(_teaser_len(clip), 3),
+            "teaser_src": next(([e["start_s"], e["end_s"]] for e in clip.effects
+                                if e["type"] == "cold_open"), None),
+            "speed": [{"start_s": e["start_s"], "end_s": e["end_s"], "factor": e["factor"],
+                       "type": e["type"], "owner": e.get("owner", "ai"),
+                       "freeze": bool(e.get("freeze")),
+                       "src_s": _src_at(clip, e["start_s"])}
+                      for e in sorted(clip.effects, key=lambda e: e.get("start_s", 0.0))
+                      if e["type"] in SPEED_TYPES],
+            "seg_audio": [_part_audio(clip, i) for i in range(len(clip.segments))],
+            "markers": list(clip.publish.get("markers") or []),
         }  # fmt: skip
+
+    def _draft_key(self, clip: Clip) -> str | None:
+        path = self._storage.artifact_path(clip.project_id, "drafts", f"{clip.id}.json")
+        if not path.with_suffix(".mp4").is_file():
+            return None
+        try:
+            return str(json.loads(path.read_text(encoding="utf-8"))["key"])
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
 
     def editor_audio(
         self, clip_id: str, segments: list[list[float]] | None = None
@@ -794,14 +825,21 @@ class ClipService:
     def apply_edit(
         self, clip_id: str, segments: list[list[float]] | None,
         overlays: list[dict[str, Any]] | None, fx_off: list[str] | None,
-        caption_bar: bool | None = None,
+        caption_bar: bool | None = None, plan: bool = True, base_version: int | None = None,
+        speed: list[dict[str, Any]] | None = None,
+        segment_audio: list[dict[str, Any]] | None = None,
+        markers: list[dict[str, Any]] | None = None,
     ) -> Clip:  # fmt: skip
         """Save a timeline edit. New cuts or effect switches re-plan the effects and
-        re-sync the music; text placed by hand is kept from then on."""
+        re-sync the music; text placed by hand is kept from then on. plan=False (editor
+        autosave) stores the edit and leaves the re-plan to the next render."""
         clip = self._get(clip_id)
+        if base_version is not None and base_version != clip.version:
+            raise ConflictError("This Short was changed in another tab or window")
         asset = self._assets.get(clip.asset_id)
         src_len = asset.media_info.duration_s if asset and asset.media_info else 1e9
-        replan = False
+        # Speed times refer to the cut the effects were planned for, so they go first
+        replan = speed is not None and self._set_speed(clip, speed)
         if segments is not None:
             segs = [TimeRange(max(0.0, float(a)), min(src_len, float(b))) for a, b in segments]
             segs = [s for s in segs if s.end_s - s.start_s >= 0.3]
@@ -809,32 +847,32 @@ class ClipService:
                 raise SphuraError("Keep at least one part of the clip (0.3 s or longer)")
             if sum(s.duration_s for s in segs) > 180:
                 raise SphuraError("Shorts can be at most 3 minutes long")
-            replan = [(s.start_s, s.end_s) for s in segs] != [
+            cut = [(s.start_s, s.end_s) for s in segs] != [
                 (s.start_s, s.end_s) for s in clip.segments
             ]
+            if len(segs) != len(clip.segments) and segment_audio is None:
+                clip.segment_audio = []  # an older page: per-part volume no longer lines up
             clip.segments = segs
-            if replan:
+            if cut:
+                replan = True
                 clip.publish = {**clip.publish, "cuts_edited": True}
+        if segment_audio is not None:
+            parts = [_clean_audio(a) for a in segment_audio[: len(clip.segments)]]
+            parts += [_clean_audio({})] * (len(clip.segments) - len(parts))
+            clip.segment_audio = parts if any(_clean_audio({}) != a for a in parts) else []
+        if markers is not None:
+            clip.publish = {**clip.publish, "markers": [
+                {"src_s": round(min(max(float(m["src_s"]), 0.0), src_len), 3),
+                 "label": str(m.get("label") or "")[:40]}
+                for m in markers[:50] if m.get("src_s") is not None
+            ]}  # fmt: skip
         if fx_off is not None:
             off = sorted({f for f in fx_off if f in TOGGLES})
             replan = replan or off != sorted(clip.publish.get("fx_off") or [])
             clip.publish = {**clip.publish, "fx_off": off}
         if replan:
-            moment = next(
-                (r.candidate for r in self._queries.highlights(clip.project_id, None)
-                 if r.candidate.id == clip.candidate_id),
-                None,
-            )  # fmt: skip
-            self._ctx = (
-                moment.judgement if moment else None,
-                self._optional(self._queries.transcript, clip.project_id),
-            )
-            peak = moment.peak_s if moment else clip.segments[0].start_s
-            tl = self._optional(self._queries.signals, clip.project_id)
-            old_music = next((e for e in clip.effects if e["type"] == "music"), None)
-            self._plan(clip, peak, tl, self._wav(clip))
-            if not self._keep_music(clip, old_music):
-                self._apply_music(clip, self._music())
+            clip.publish = {**clip.publish, "replan_pending": True}
+        replanned = plan and self._replan(clip)
         bar_was = bool(clip.publish.get("caption_bar"))
         if caption_bar is not None and clip.style != "meme":
             self._set_bar(clip, caption_bar)
@@ -849,12 +887,13 @@ class ClipService:
                     None if o.get("y") is None else min(max(float(o["y"]), 0.0), 1.0),
                     min(max(float(o.get("size") or 1.0), 0.4), 3.0),
                     str(o.get("color") or "")[:7],
+                    "user" if o.get("owner") == "user" else "ai",
                 )
                 for o in overlays
                 if str(o.get("text", "")).strip() and float(o["end_s"]) > float(o["start_s"])
             ]
             clip.publish = {**clip.publish, "overlays_edited": True}
-        elif replan:
+        elif replanned:
             self._caption(clip)  # timings follow the re-planned key hit
         bar_now = bool(clip.publish.get("caption_bar"))
         if bar_now and not bar_was and not any(o.style == "bar" for o in clip.overlays):
@@ -867,8 +906,91 @@ class ClipService:
                 clip.publish["overlays_edited"] = True
         elif bar_was and not bar_now:
             clip.overlays = [o for o in clip.overlays if o.style != "bar"]
+        clip.version += 1
         self._clips.save(clip)
         return clip
+
+    @staticmethod
+    def _set_speed(clip: Clip, pieces: list[dict[str, Any]]) -> bool:
+        """Store the editor's speed changes; True when they differ from what's planned.
+        Removed AI pieces are remembered so the next re-plan doesn't bring them back."""
+        total = _teaser_len(clip) + clip.duration_s
+        new: list[dict[str, Any]] = []
+        for p in sorted(pieces, key=lambda p: float(p["start_s"])):
+            a = max(0.0, float(p["start_s"]), new[-1]["end_s"] if new else 0.0)
+            b = min(total, float(p["end_s"]))
+            mine = p.get("owner") == "user"
+            if b - a < 0.01:
+                continue
+            # Your speeds are 0.25-2x; SPHURA's own (e.g. a near-freeze) pass through as planned
+            lo, hi = (0.25, 2.0) if mine else (0.01, 4.0)
+            e = {"type": p.get("type") if p.get("type") in SPEED_TYPES else "speed",
+                 "start_s": round(a, 3), "end_s": round(b, 3),
+                 "factor": round(min(max(float(p["factor"]), lo), hi), 4)}  # fmt: skip
+            if not mine:  # keep what the planner stored with it (e.g. freeze)
+                at = (e["start_s"], e["end_s"])
+                same = [o for o in clip.effects if o["type"] in SPEED_TYPES
+                        and (o["start_s"], o["end_s"]) == at]  # fmt: skip
+                extra = (
+                    {k: v for k, v in same[0].items() if k not in ("owner", "src_s")}
+                    if same
+                    else {}
+                )
+                e = {**extra, **e}
+            if mine:
+                e["owner"] = "user"
+                e["src_s"] = None if p.get("src_s") is None else round(float(p["src_s"]), 3)
+            new.append(e)
+        old = [e for e in clip.effects if e["type"] in SPEED_TYPES]
+
+        def sig(es: list[dict[str, Any]]) -> list[tuple[Any, ...]]:
+            return sorted((e["start_s"], e["end_s"], e["factor"], e.get("owner", "ai")) for e in es)
+
+        if sig(old) == sig(new):
+            return False
+        kept = {(e["start_s"], e["end_s"]) for e in new}
+        removed = list(clip.publish.get("speed_removed") or [])
+        for e in old:
+            src = _src_at(clip, e["start_s"])
+            if (
+                e.get("owner", "ai") == "ai"
+                and (e["start_s"], e["end_s"]) not in kept
+                and src is not None
+            ):
+                removed.append(src)
+        clip.effects = [e for e in clip.effects if e["type"] not in SPEED_TYPES] + new
+        clip.publish = {**clip.publish, "speed_removed": removed[-50:]}
+        return True
+
+    def flush_plan(self, clip_id: str) -> None:
+        """Run a re-plan that editor autosaves left pending, before anything renders."""
+        clip = self._get(clip_id)
+        if clip.publish.get("replan_pending"):
+            self._replan(clip)
+            if not clip.publish.get("overlays_edited"):
+                self._caption(clip)
+            self._clips.save(clip)
+
+    def _replan(self, clip: Clip) -> bool:
+        if not clip.publish.get("replan_pending"):
+            return False
+        moment = next(
+            (r.candidate for r in self._queries.highlights(clip.project_id, None)
+             if r.candidate.id == clip.candidate_id),
+            None,
+        )  # fmt: skip
+        self._ctx = (
+            moment.judgement if moment else None,
+            self._optional(self._queries.transcript, clip.project_id),
+        )
+        peak = moment.peak_s if moment else clip.segments[0].start_s
+        tl = self._optional(self._queries.signals, clip.project_id)
+        old_music = next((e for e in clip.effects if e["type"] == "music"), None)
+        self._plan(clip, peak, tl, self._wav(clip))
+        if not self._keep_music(clip, old_music):
+            self._apply_music(clip, self._music())
+        clip.publish = {k: v for k, v in clip.publish.items() if k != "replan_pending"}
+        return True
 
     @staticmethod
     def _set_bar(clip: Clip, on: bool) -> None:
@@ -899,12 +1021,13 @@ class ClipService:
             return True
         return False
 
-    def draft(self, clip_id: str) -> Job:
+    def draft(self, clip_id: str, full: bool = False) -> Job:
         """Quick preview render without burned-in text (the editor draws text live)."""
+        self.flush_plan(clip_id)
         clip = self._get(clip_id)
         return self._queue.enqueue(
             Job(type=JobType.RENDER, project_id=clip.project_id,
-                payload={"clip_id": clip.id, "draft": True})
+                payload={"clip_id": clip.id, "draft": True, "full": full})
         )  # fmt: skip
 
     def draft_path(self, clip_id: str) -> Path:
@@ -936,6 +1059,7 @@ class ClipService:
         return clip
 
     def rerender(self, clip_id: str) -> Job:
+        self.flush_plan(clip_id)
         clip = self._clips.get(clip_id)
         if clip is None:
             raise NotFoundError("clip not found")
@@ -1049,7 +1173,12 @@ class RenderHandler:
             clip.crop_version = reframe.VERSION
             if clip.layout == "auto":
                 clip.layout = plan.layout
-            self._clips.save(clip)  # the camera path is part of the editable EDL
+            # The camera path is part of the editable EDL. Save it onto the latest version:
+            # the editor may have autosaved edits while this render was starting
+            latest = self._clips.get(clip.id) or clip
+            latest.crop_path, latest.crop_version = clip.crop_path, clip.crop_version
+            latest.layout = clip.layout
+            self._clips.save(latest)
 
         if ctx.job.payload.get("draft"):
             preview = copy.copy(clip)
@@ -1059,7 +1188,10 @@ class RenderHandler:
             done = self._renderer.render(
                 preview, asset.source_uri, asset.media_info, mix.index if mix else None,
                 draft, lambda f: ctx.report("render", f, clip.title),
+                draft=not ctx.job.payload.get("full"),
             )  # fmt: skip
+            # Which edit this draft shows: the editor treats an older draft as stale
+            draft.with_suffix(".json").write_text(json.dumps({"key": draft_key(clip)}))
             return {"clip_id": clip.id, "path": str(done.path), "draft": True,
                     "duration_s": round(done.duration_s, 2)}  # fmt: skip
 
@@ -1098,6 +1230,60 @@ class RenderHandler:
         }
 
 
+SPEED_TYPES = ("speed", "slowmo")
+
+
+def _src_at(clip: Clip, pre_s: float) -> float | None:
+    """Recording time at a point of the pre-speed timeline (None inside the cold open)."""
+    lead = _teaser_len(clip)
+    if pre_s < lead - 1e-6 or not clip.segments:
+        return None
+    return round(clip.to_source_time(pre_s - lead), 3)
+
+
+def _clean_audio(a: dict[str, Any]) -> dict[str, Any]:
+    return {"gain_db": round(min(max(float(a.get("gain_db") or 0.0), -30.0), 12.0), 1),
+            "mute": bool(a.get("mute"))}  # fmt: skip
+
+
+def _part_audio(clip: Clip, i: int) -> dict[str, Any]:
+    return _clean_audio(clip.segment_audio[i] if i < len(clip.segment_audio) else {})
+
+
+def _keep_user_speed(clip: Clip, fx: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Re-planned effects with your speed changes kept: each follows the moment of the
+    recording it starts on (dropped if that moment was cut out); AI pieces you removed or
+    that clash with yours stay out."""
+    mine = [e for e in clip.effects if e["type"] in SPEED_TYPES and e.get("owner") == "user"]
+    removed = list(clip.publish.get("speed_removed") or [])
+    if not mine and not removed:
+        return fx
+    lead = next((e["end_s"] - e["start_s"] for e in fx if e["type"] == "cold_open"), 0.0)
+    placed: list[dict[str, Any]] = []
+    for e in sorted(mine, key=lambda e: e["start_s"]):
+        src, length = e.get("src_s"), e["end_s"] - e["start_s"]
+        if src is None:  # inside the cold open
+            a = e["start_s"] if e["end_s"] <= lead + 1e-6 else None
+        else:
+            inside = any(s.start_s <= src <= s.end_s for s in clip.segments)
+            a = lead + effects_to_clip(clip, src) if inside else None
+        if a is None or any(a < p["end_s"] and a + length > p["start_s"] for p in placed):
+            continue
+        placed.append({**e, "start_s": round(a, 3), "end_s": round(a + length, 3)})
+
+    def gone(e: dict[str, Any]) -> bool:
+        if e["type"] not in SPEED_TYPES:
+            return False
+        if any(e["start_s"] < p["end_s"] and e["end_s"] > p["start_s"] for p in placed):
+            return True
+        if e["start_s"] < lead:
+            return False
+        src = clip.to_source_time(e["start_s"] - lead)
+        return any(abs(src - r) < 0.3 for r in removed)
+
+    return [e for e in fx if not gone(e)] + placed
+
+
 def _teaser_len(clip: Clip) -> float:
     return float(sum(e["end_s"] - e["start_s"] for e in clip.effects if e["type"] == "cold_open"))
 
@@ -1128,3 +1314,16 @@ def _dialogue(transcript: Any, clip: Clip) -> list[str]:
 def _seed(clip_id: str) -> int:
     """Stable per clip, so re-renders keep the same melody."""
     return int(clip_id[:8], 16) if all(c in "0123456789abcdef" for c in clip_id[:8]) else 7
+
+
+def draft_key(clip: Clip) -> str:
+    """What a draft preview shows: everything rendered except on-screen text (the editor
+    draws that live), so text edits don't make the preview stale."""
+    d = clip_to_dict(clip)
+    keep = ("segments", "effects", "audio", "crop_path", "layout", "style", "aspect")
+    pub = {k: clip.publish.get(k) for k in ("caption_bar", "fx_off", "replan_pending")}
+    sel = {k: d.get(k) for k in keep}
+    if "segment_audio" in d:  # only when set, so older drafts stay fresh
+        sel["segment_audio"] = d["segment_audio"]
+    blob = json.dumps([sel, pub], sort_keys=True, default=str)
+    return hashlib.sha1(blob.encode()).hexdigest()[:16]

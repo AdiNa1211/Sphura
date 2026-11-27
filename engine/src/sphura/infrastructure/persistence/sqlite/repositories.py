@@ -232,13 +232,16 @@ class SqliteJobRepository:
             ),
         )
 
-    def claim_next(self) -> Job | None:
+    def claim_next(self, previews_only: bool = False) -> Job | None:
         now = _ts(utcnow())
+        only = (
+            "AND type = 'render' AND json_extract(payload, '$.draft') = 1" if previews_only else ""
+        )
         with self._db.tx() as c:
             r = c.execute(
-                """UPDATE jobs SET status = 'running', started_at = ?, heartbeat_at = ?,
+                f"""UPDATE jobs SET status = 'running', started_at = ?, heartbeat_at = ?,
                      attempts = attempts + 1
-                   WHERE id = (SELECT id FROM jobs WHERE status = 'queued'
+                   WHERE id = (SELECT id FROM jobs WHERE status = 'queued' {only}
                                ORDER BY created_at LIMIT 1)
                    RETURNING *""",
                 (now, now),

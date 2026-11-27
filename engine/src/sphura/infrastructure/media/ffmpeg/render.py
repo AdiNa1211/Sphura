@@ -22,7 +22,7 @@ from sphura.infrastructure.media.ffmpeg.process import run_with_progress
 from sphura.infrastructure.media.ffmpeg.toolchain import FFmpegToolchain
 from sphura.pipeline import sfx
 from sphura.pipeline.reframe import crop_x_expression
-from sphura.pipeline.styles import geometry
+from sphura.pipeline.styles import Geometry, geometry
 from sphura.ports.media import RenderOutcome
 
 log = logging.getLogger(__name__)
@@ -43,6 +43,30 @@ _ENCODER_ARGS: dict[str, list[str]] = {
     "libopenh264": ["-b:v", "12M"],
 }  # fmt: skip
 
+# Editor previews: same filter graph at half size, 30 fps, fastest encoder settings
+DRAFT_SCALE = 0.5
+DRAFT_FPS = 30
+_DRAFT_ARGS: dict[str, list[str]] = {
+    "h264_nvenc": ["-preset", "p1", "-tune", "ll", "-rc", "vbr", "-cq", "28", "-b:v", "0"],
+    "h264_qsv": ["-preset", "veryfast", "-global_quality", "28"],
+    "h264_amf": ["-quality", "speed", "-rc", "cqp", "-qp_i", "26", "-qp_p", "28"],
+    "h264_videotoolbox": ["-b:v", "4M", "-realtime", "1"],
+    "h264_mf": ["-b:v", "4M"],
+    "libx264": ["-preset", "ultrafast", "-crf", "26"],
+    "libopenh264": ["-b:v", "4M"],
+}  # fmt: skip
+
+
+def _geo(clip: Clip, frame_w: int, frame_h: int, draft: bool) -> Geometry:
+    g = geometry(clip, frame_w, frame_h)
+    if not draft:
+        return g
+
+    def even(v: int) -> int:
+        return max(2, round(v * DRAFT_SCALE) // 2 * 2)
+
+    return Geometry(even(g.out_w), even(g.out_h), even(g.video_h), even(g.bar_h) if g.bar_h else 0)
+
 
 class FFmpegRenderer:
     def __init__(self, toolchain: FFmpegToolchain) -> None:
@@ -56,13 +80,16 @@ class FFmpegRenderer:
         audio_stream: int | None,
         out_path: Path,
         on_progress: Callable[[float], None],
+        draft: bool = False,
     ) -> RenderOutcome:
         profile = self._tc.profile()
         encoders = list(profile.h264_encoders) or ["libx264"]
         last: ToolchainError | None = None
         for enc in encoders:  # hardware first; fall back if the GPU path fails mid-render
             try:
-                done = self._run(clip, source_uri, info, audio_stream, out_path, enc, on_progress)
+                done = self._run(
+                    clip, source_uri, info, audio_stream, out_path, enc, on_progress, draft
+                )
                 return RenderOutcome(done, enc, clip.output_duration_s)
             except ToolchainError as e:
                 log.warning("render with %s failed, trying next encoder: %s", enc, e)
@@ -79,6 +106,7 @@ class FFmpegRenderer:
         encoder: str,
         text_file: str | None = None,
         sfx_file: str | None = None,
+        draft: bool = False,
     ) -> list[str]:
         """text_file / sfx_file: names relative to the directory ffmpeg runs in."""
         v = info.primary_video
@@ -108,8 +136,10 @@ class FFmpegRenderer:
         scale = (
             f",scale=-2:{height}:flags=lanczos" if landscape or height < v.display_height else ""
         )
-        fps = f",fps={MAX_FPS}" if v.fps > MAX_FPS + 0.5 else ""
+        cap = DRAFT_FPS if draft else MAX_FPS
+        fps = f",fps={cap}" if v.fps > cap + 0.5 else ""
         parts: list[str] = []
+        lead = len(segments) - len(clip.segments)  # the cold-open teaser comes first
         for i, s in enumerate(segments):
             parts.append(f"[{i}:{v.index}]setpts=PTS-STARTPTS{scale}{fps},setsar=1[v{i}]")
             fade_out = max(0.0, s.duration_s - 0.05)
@@ -121,21 +151,22 @@ class FFmpegRenderer:
             # Short fades at every join stop clicks at the jump cuts
             parts.append(
                 f"{src}aresample=48000,aformat=channel_layouts=stereo,"
-                f"afade=t=in:d=0.03,afade=t=out:st={fade_out:.3f}:d=0.05[a{i}]"
+                f"afade=t=in:d=0.03,afade=t=out:st={fade_out:.3f}:d=0.05"
+                f"{_part_volume(clip, i - lead)}[a{i}]"
             )
         n = len(segments)
         joined = "".join(f"[v{i}][a{i}]" for i in range(n))
         parts.append(f"{joined}concat=n={n}:v=1:a=1[vc][ac]")
         frame_h = height
         frame_w = round(frame_h * v.display_width / v.display_height) // 2 * 2
-        parts += self._frame_chain(clip, frame_w, frame_h)
-        g = geometry(clip, frame_w, frame_h)
+        parts += self._frame_chain(clip, frame_w, frame_h, draft)
+        g = _geo(clip, frame_w, frame_h, draft)
         parts += _effects_chain(clip, g.out_w, g.video_h, text_file, g.bar_h)
         parts += _audio_mix(clip, sfx_in, music_in, music, voice_in)
         cmd += [
             "-filter_complex", ";".join(parts),
             "-map", "[vout]", "-map", "[aout]",
-            "-c:v", encoder, *_ENCODER_ARGS.get(encoder, []),
+            "-c:v", encoder, *(_DRAFT_ARGS if draft else _ENCODER_ARGS).get(encoder, []),
             "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
             "-movflags", "+faststart",
             "-f", "mp4", str(out),
@@ -143,11 +174,14 @@ class FFmpegRenderer:
         return cmd
 
     @staticmethod
-    def _frame_chain(clip: Clip, frame_w: int, frame_h: int) -> list[str]:
+    def _frame_chain(clip: Clip, frame_w: int, frame_h: int, draft: bool = False) -> list[str]:
         """[vc] (concatenated, source framing) -> [vout] in the clip's aspect and layout."""
         if clip.aspect == AspectRatio.LANDSCAPE:
+            if draft:  # half size, like the other drafts
+                w, h = frame_w // 4 * 2, frame_h // 4 * 2
+                return [f"[vc]scale={w}:{h},format=yuv420p[vf]"]
             return ["[vc]format=yuv420p[vf]"]
-        g = geometry(clip, frame_w, frame_h)
+        g = _geo(clip, frame_w, frame_h, draft)
         out_w, out_h = g.out_w, g.video_h  # footage area; a caption bar is added later
         if clip.layout == "fit":
             # Whole frame centred over a blurred, zoomed copy: nothing important cut off
@@ -177,6 +211,7 @@ class FFmpegRenderer:
         out_path: Path,
         encoder: str,
         on_progress: Callable[[float], None],
+        draft: bool = False,
     ) -> Path:
         out_path.parent.mkdir(parents=True, exist_ok=True)
         # Unique temp names: two renders of one clip must never write the same file
@@ -203,7 +238,7 @@ class FFmpegRenderer:
             sfx.write_wav(sounds, sfx.mix_track(events, clip.output_duration_s))
             sfx_name = sounds.name
         cmd = self.build_command(
-            clip, source_uri, info, audio_stream, part, encoder, text_name, sfx_name
+            clip, source_uri, info, audio_stream, part, encoder, text_name, sfx_name, draft
         )
         try:
             run_with_progress(
@@ -322,6 +357,17 @@ def _effects_chain(
     text = f",ass={text_file}" if text_file else ""
     parts.append(f"[vt]setsar=1{bar}{text},format=yuv420p[vout]")
     return parts
+
+
+def _part_volume(clip: Clip, i: int) -> str:
+    """Volume set for one part in the editor; nothing when it's untouched."""
+    if i < 0 or i >= len(clip.segment_audio):
+        return ""
+    a = clip.segment_audio[i]
+    if a.get("mute"):
+        return ",volume=0"
+    db = float(a.get("gain_db") or 0.0)
+    return f",volume={10 ** (db / 20):.4f}" if abs(db) >= 0.05 else ""
 
 
 def _speed_plan(clip: Clip) -> list[tuple[float, float | None, float]]:

@@ -37,7 +37,10 @@ Development history: [CHANGELOG.md](CHANGELOG.md) · Technical design: [docs/ARC
 | **Context-matched effects** | Each moment is classified (finisher, clutch, explosion, death, funny, story, action) and gets effects to match, such as freeze-frames, letterbox bars or bigger flashes. |
 | **People-aware reframing** | The 9:16 crop follows the characters and the action with a smoothed virtual camera, or switches to a full-frame layout over a blurred background. |
 | **Captions** | Speaker-labelled dialogue captions and AI on-screen text; Hindi speech can be captioned in Hinglish (Roman script). |
-| **Timeline editor** | CapCut-style parts with filmstrips: drag an edge to add or cut footage, with a live preview. Video, Game audio and Music tracks, a Full recording view, text anywhere (style, size, colour, position), effect switches and the caption bar. |
+| **Timeline editor** | CapCut-style parts with filmstrips: drag an edge to add or cut footage, drag a part to reorder it, split, duplicate, multi-select (Shift+click or a selection box) and snap to edges, beats and markers. Video, Game audio and Music tracks (resizable, collapsible) with canvas waveforms, a Full recording view, text anywhere (style, size, colour, position), effect switches and the caption bar. |
+| **Speed, sound and markers** | Slow-motion and speed ramps show as badges you can retime (0.25–2×), move or delete; per-part mute and volume; markers that stay with their moment of the recording. Your changes are kept when SPHURA re-plans the effects after a cut. |
+| **Safe, fast editing** | Named undo/redo (100 steps), autosave without rendering, a warning when the Short changed in another tab, fast half-size previews on a reserved worker (with a full-quality option), and relinking a recording that was moved. |
+| **Keyboard and menus** | J/K/L, frame steps, Home/End, zoom with Ctrl+scroll or a pinch, loop, right-click and Shift+F10 menus, a floating action bar, and `?` for every shortcut. |
 | **Music** | Original music for every Short from a local AI model (ACE-Step 1.5) or SPHURA's built-in composer, or tracks from your own folder chosen by the AI. Cuts and the key hit land on the beat. |
 | **AI Highlight Reel** | Drop in many clips or recordings; SPHURA ranks every moment on one scale, drops repeats and edits one highlight video (hook first, best moment last) for Shorts, Reels, TikTok, 16:9 or 1:1, with title, description, chapters, hashtags and a thumbnail. |
 | **Copy for posting** | AI-written title, description and hashtags, checked against made-up claims, saved as a `.txt` next to each video. |
@@ -55,7 +58,7 @@ Development history: [CHANGELOG.md](CHANGELOG.md) · Technical design: [docs/ARC
 
 | | |
 |---|---|
-| **YouTube downloads** | A queue and library for videos and playlists you own or have permission to use: quality choice, any download folder (external drives included), pause/resume, crash recovery, and **Open in editor**. |
+| **YouTube downloads** | A queue and library for videos, playlists and channels you own or have permission to use: one link box that detects which it is, live progress with what's left, quality choice, any download folder (external drives included), pause/resume, crash recovery, and **Open in editor**. |
 | **Taste learning** | 👍 / 👎 on moments and Shorts, and future rankings learn what you like. |
 | **Hardware-aware** | Tests which GPU encoders actually work (NVENC, QSV, AMF, …) and uses the GPU for transcription when it can, falling back to the CPU safely. |
 | **Themes** | Four colour themes (Graphite, Midnight, Mono, Ember), switchable at the bottom of the sidebar. |
@@ -185,6 +188,8 @@ Then:
 1. **New stream:** paste a recording's path or **Browse…** for it, or pick one from **Recent recordings** or **Downloads**. Press **Find best moments**; SPHURA analyses it with live progress.
 2. **Make Shorts:** tick the Shorts worth making and the cut for each (clean, cinematic or edited), then **Make selected**. **Other ways to make Shorts** has the classic styles and the trend formats.
 3. **Shorts:** preview, copy the title and description, change music, add on-screen text or a **voice-over**, or open the editor.
+
+**Editor:** edits save on their own; press **Update preview** to render them (fast by default; pick **Preview: full quality** for the exact export look), then **Export**. Drag a part's edge to trim it or its middle to move it, click a speed badge to retime it, press `B` for a marker, right-click anything for its actions, and `?` for the shortcuts.
 4. **Moments:** browse everything the AI found and 👍 / 👎 it to teach SPHURA your taste.
 
 **Voice-overs:** on a Short, press the 🎙 button, pick a voice, **Write script with AI**, edit the lines (each has a mood), then **Apply & re-render**. The **Voice quality** report appears underneath; **Redo** re-records one line. Names, personality and delivery are set in **Voice Intelligence**.

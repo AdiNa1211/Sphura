@@ -19,6 +19,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 from sphura.application.analyze import AnalysisService
 from sphura.application.ingest import IngestService
@@ -204,10 +205,12 @@ class DownloadManager:
 
     # ---------- import ----------
 
-    def preview(self, url: str, playlist: bool) -> dict[str, Any]:
+    def preview(self, url: str, playlist: bool | None = None) -> dict[str, Any]:
+        """playlist None: work it out from the link."""
         self._need_tools()
         self._yt.update_if_stale()
-        info = self._yt.probe(url, playlist)
+        kind, list_id, url = link_kind(url)
+        info = self._yt.probe(url, kind == "playlist" if playlist is None else playlist)
         if isinstance(info, PlaylistInfo):
             entries = [asdict(e) | {"duplicate": self._duplicate(e.id)} for e in info.entries]
             return {
@@ -228,6 +231,7 @@ class DownloadManager:
             "kind": "video", "id": info.id, "title": info.title, "channel": info.uploader,
             "duration_s": info.duration_s, "thumbnail": info.thumbnail, "url": info.url,
             "problem": problem, "duplicate": self._duplicate(info.id),
+            "playlist_url": f"https://www.youtube.com/playlist?list={list_id}" if list_id else None,
             "qualities": [{"value": str(q.height), "label": q.label, "size_bytes": q.size_bytes}
                           for q in info.qualities],
         }  # fmt: skip
@@ -418,7 +422,9 @@ class DownloadManager:
             with self._lock:
                 live = self._live.get(d.id)
                 if live:
-                    item.update({k: v for k, v in live.items() if k not in ("stop", "mode")})
+                    item.update(
+                        {k: v for k, v in live.items() if k not in ("stop", "mode", "parts")}
+                    )
             if d.status == "completed":
                 item["file_exists"] = bool(d.file_path and Path(d.file_path).is_file())
                 item["editing"] = self.editing_status(d)
@@ -469,6 +475,12 @@ class DownloadManager:
             live.update(step=step.text, speed_bps=step.speed_bps, eta_s=step.eta_s,
                         total_bytes=step.total_bytes, throttled=step.throttled)  # fmt: skip
             live["progress"] = step.fraction
+            if step.part and step.total_bytes:
+                # video and audio are separate streams: add them up for the whole size
+                parts = live.setdefault("parts", {})
+                parts[step.part] = (step.total_bytes, min(step.done_bytes or 0, step.total_bytes))
+                live["size_bytes"] = sum(t for t, _ in parts.values())
+                live["done_bytes"] = sum(d for _, d in parts.values())
             if step.total_bytes and step.fraction < 0.5 and not live.get("space_checked"):
                 live["space_checked"] = True
                 free = shutil.disk_usage(folder).free
@@ -621,3 +633,19 @@ def _safe_name(name: str) -> str:
 
 def _gb(n: float) -> str:
     return f"{n / 1024**3:.1f} GB"
+
+
+def link_kind(url: str) -> tuple[str, str | None, str]:
+    """(playlist | video, playlist id worth offering, link to read). A watch link inside a
+    playlist is the video, with the playlist offered; YouTube's endless mixes never are."""
+    u = urlparse(url.strip())
+    q = parse_qs(u.query)
+    lid = (q.get("list") or [""])[0]
+    path = u.path.rstrip("/")
+    offer = lid if lid and not lid.startswith(("RD", "UL", "LL", "WL")) else None
+    if path == "/playlist" and lid:
+        return "playlist", None, url
+    m = re.match(r"^/(@[^/]+|channel/[^/]+|c/[^/]+|user/[^/]+)(/(videos|streams|shorts))?$", path)
+    if m:  # a channel: a bare link lists its tabs, so read its videos
+        return "playlist", None, url if m.group(2) else f"{u.scheme}://{u.netloc}{path}/videos"
+    return "video", offer, url

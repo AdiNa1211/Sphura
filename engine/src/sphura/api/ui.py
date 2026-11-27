@@ -88,7 +88,7 @@ MAX_UPLOAD = 60_000_000
 
 class PreviewRequest(BaseModel):
     url: str = Field(min_length=8, max_length=500)
-    playlist: bool = False
+    playlist: bool | None = None  # None: detect from the link
 
 
 class AddDownloads(BaseModel):
@@ -103,7 +103,12 @@ class EditorSave(BaseModel):
     overlays: list[dict[str, Any]] | None = None
     fx_off: list[str] | None = None
     caption_bar: bool | None = None
-    render: str = "draft"  # draft (preview) | final (export the Short)
+    render: str = "draft"  # draft (preview) | final (export the Short) | none (autosave)
+    base_version: int | None = None  # the version the editor started from
+    full: bool = False  # draft at full quality instead of the fast preview
+    speed: list[dict[str, Any]] | None = None  # speed pieces on the pre-speed timeline
+    segment_audio: list[dict[str, Any]] | None = None  # per part: gain_db, mute
+    markers: list[dict[str, Any]] | None = None  # in recording time: src_s, label
 
 
 class EditorAudio(BaseModel):
@@ -145,6 +150,12 @@ def build_router(dependencies: list[Any]) -> APIRouter:
     @r.get("/", include_in_schema=False)
     def index() -> HTMLResponse:
         return HTMLResponse((WEB / "index.html").read_text(encoding="utf-8"))
+
+    @r.get("/editor.js", include_in_schema=False)
+    def editor_js() -> Response:
+        # Read per request like index.html, so a UI update needs no restart
+        js = (WEB / "editor.js").read_text(encoding="utf-8")
+        return Response(js, media_type="text/javascript", headers={"Cache-Control": "no-cache"})
 
     @r.get("/v1/library/recent", dependencies=dependencies)
     def recent() -> list[dict[str, Any]]:
@@ -651,6 +662,11 @@ def build_router(dependencies: list[Any]) -> APIRouter:
     def download_settings(body: dict[str, Any], engine: Engine) -> dict[str, Any]:
         return asdict(engine.downloads.save_settings(body))
 
+    @r.post("/v1/assets/{asset_id}/relink", dependencies=dependencies)
+    def relink_asset(asset_id: str, body: dict[str, Any], engine: Engine) -> dict[str, Any]:
+        a = engine.ingest.relink(asset_id, str(body.get("path") or ""))
+        return {"asset_id": a.id, "path": a.source_uri}
+
     @r.post("/v1/library/choose-file", dependencies=dependencies)
     def choose_file() -> dict[str, Any]:
         videos = Path.home() / "Videos"
@@ -757,11 +773,18 @@ def build_router(dependencies: list[Any]) -> APIRouter:
     @r.put("/v1/clips/{clip_id}/editor", dependencies=dependencies)
     def save_editor(clip_id: str, body: EditorSave, engine: Engine) -> dict[str, Any]:
         clips = engine.clips
+        if body.render not in ("draft", "final", "none"):
+            raise HTTPException(400, "render must be draft, final or none")
         clip = clips.apply_edit(
-            clip_id, body.segments, body.overlays, body.fx_off, body.caption_bar
-        )
-        job = clips.draft(clip_id) if body.render == "draft" else clips.rerender(clip_id)
-        return {"job_id": job.id, "duration": round(clip.output_duration_s, 3)}
+            clip_id, body.segments, body.overlays, body.fx_off, body.caption_bar,
+            plan=body.render != "none", base_version=body.base_version,
+            speed=body.speed, segment_audio=body.segment_audio, markers=body.markers,
+        )  # fmt: skip
+        if body.render == "none":
+            return {"job_id": None, "version": clip.version}
+        job = clips.draft(clip_id, body.full) if body.render == "draft" else clips.rerender(clip_id)
+        return {"job_id": job.id, "duration": round(clip.output_duration_s, 3),
+                "version": clip.version}  # fmt: skip
 
     @r.get("/v1/clips/{clip_id}/draft.mp4", dependencies=dependencies)
     def draft_video(clip_id: str, engine: Engine) -> FileResponse:

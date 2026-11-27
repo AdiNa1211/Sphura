@@ -92,6 +92,12 @@ class LocalJobQueue:
             t = threading.Thread(target=self._run, name=f"sphura-worker-{i}", daemon=True)
             t.start()
             self._threads.append(t)
+        # One more worker kept for editor previews, so they never wait behind long jobs
+        t = threading.Thread(
+            target=self._run, args=(True,), name="sphura-preview-worker", daemon=True
+        )
+        t.start()
+        self._threads.append(t)
         self._wake.set()
 
     def stop(self, timeout_s: float = 10.0) -> None:
@@ -101,9 +107,9 @@ class LocalJobQueue:
             t.join(timeout_s)
         self._threads.clear()
 
-    def _run(self) -> None:
+    def _run(self, previews_only: bool = False) -> None:
         while not self._stop.is_set():
-            job = self._repo.claim_next()
+            job = self._repo.claim_next(previews_only)
             if job is None:
                 self._wake.wait(timeout=2.0)
                 self._wake.clear()

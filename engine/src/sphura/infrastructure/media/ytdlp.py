@@ -46,6 +46,7 @@ class Step:
     eta_s: float | None = None
     total_bytes: float | None = None  # size of the stream currently downloading
     part: str = ""  # "video" or "audio"
+    done_bytes: float | None = None  # downloaded so far of the current stream
     throttled: bool = False
 
 
@@ -261,7 +262,7 @@ class YouTubeImporter:
             "--progress-template",
             "download:SPHURA-PROGRESS|%(progress._percent_str)s|%(progress.speed)s|"
             "%(progress.eta)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|"
-            "%(info.vcodec)s",
+            "%(info.vcodec)s|%(progress.downloaded_bytes)s",
             "--print", "after_move:SPHURA-FILE %(filepath)s",
             "-o", str(work_dir / "%(id)s.%(ext)s"),
             url,
@@ -317,16 +318,20 @@ class YouTubeImporter:
 
 
 def _parse_progress(line: str, throttled: bool) -> Step:
-    _, pct_s, speed, eta, total, estimate, vcodec = (f.strip() for f in line.split("|"))
+    _, pct_s, speed, eta, total, estimate, vcodec, *rest = (f.strip() for f in line.split("|"))
     m = re.search(r"([\d.]+)%", pct_s)
     pct = min(float(m.group(1)) / 100, 1.0) if m else 0.0
     audio = vcodec == "none"
+    size = _num(total) or _num(estimate)
+    done = _num(rest[0]) if rest else None
+    if done is None and size:
+        done = size * pct
     return Step(
         "Downloading audio" if audio else "Downloading video",
         0.85 + 0.1 * pct if audio else 0.85 * pct,
         speed_bps=_num(speed), eta_s=_num(eta),
-        total_bytes=_num(total) or _num(estimate), part="audio" if audio else "video",
-        throttled=throttled,
+        total_bytes=size, part="audio" if audio else "video", throttled=throttled,
+        done_bytes=done,
     )  # fmt: skip
 
 

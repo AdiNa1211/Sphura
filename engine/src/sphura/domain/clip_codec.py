@@ -16,7 +16,7 @@ from sphura.domain.models import (
 
 
 def clip_to_dict(c: Clip) -> dict[str, Any]:
-    return {
+    d = {
         "id": c.id,
         "project_id": c.project_id,
         "asset_id": c.asset_id,
@@ -31,7 +31,7 @@ def clip_to_dict(c: Clip) -> dict[str, Any]:
         "captions": [[w.text, w.start_s, w.end_s, w.emphasis] for w in c.captions],
         "caption_style": c.caption_style,
         "overlays": [
-            [o.text, o.start_s, o.end_s, o.style, o.y, o.size, o.color] for o in c.overlays
+            [o.text, o.start_s, o.end_s, o.style, o.y, o.size, o.color, o.owner] for o in c.overlays
         ],
         "audio": {
             "game_gain": c.audio.game_gain,
@@ -45,6 +45,9 @@ def clip_to_dict(c: Clip) -> dict[str, Any]:
         "version": c.version,
         "duration_s": round(c.duration_s, 3),
     }
+    if c.segment_audio:  # only when set, so untouched Shorts store exactly what they did
+        d["segment_audio"] = c.segment_audio
+    return d
 
 
 def clip_from_dict(d: dict[str, Any]) -> Clip:
@@ -68,4 +71,5 @@ def clip_from_dict(d: dict[str, Any]) -> Clip:
         candidate_id=d.get("candidate_id"),
         rank=d.get("rank"),
         version=d.get("version", 1),
+        segment_audio=d.get("segment_audio", []),
     )

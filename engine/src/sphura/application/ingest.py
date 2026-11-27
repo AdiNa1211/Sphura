@@ -6,7 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sphura.domain.errors import InvalidMediaError, NotFoundError, UnsupportedContainerError
+from sphura.domain.errors import (
+    InvalidMediaError,
+    NotFoundError,
+    SphuraError,
+    UnsupportedContainerError,
+)
 from sphura.domain.models import (
     EditingMode,
     Job,
@@ -73,6 +78,25 @@ class IngestService:
                 self._assets.update(a)
                 n += 1
         return n
+
+    def relink(self, asset_id: str, path: str) -> MediaAsset:
+        """A moved recording: point its media at the new path, only if it's the same file
+        (size + head/tail fingerprint), so a different video can never be linked by mistake."""
+        asset = self._assets.get(asset_id)
+        if asset is None:
+            raise NotFoundError("this recording isn't in SPHURA any more")
+        p = Path(path.strip().strip('"')).expanduser()
+        uri = str(p.resolve()) if p.exists() else str(p)
+        if not self._reader.exists(uri):
+            raise InvalidMediaError(f"file not found: {uri}")
+        if fast_fingerprint(self._reader, uri, self._reader.size(uri)) != asset.fingerprint:
+            raise SphuraError(
+                f"{p.name} isn't the same recording (its size or content differs). "
+                "Pick the file this Short was made from."
+            )
+        asset.source_uri = uri
+        self._assets.update(asset)
+        return asset
 
     def ingest_local_file(
         self,

@@ -261,6 +261,7 @@ class TextOverlay:
     y: float | None = None  # vertical centre as a share of the frame height; None = default
     size: float = 1.0  # multiplier on the style's font size
     color: str = ""  # "#RRGGBB"; "" = the style's own colours
+    owner: str = "ai"  # ai (planned, may be re-planned) | user (made or edited by hand)
 
 
 @dataclass(slots=True)
@@ -292,6 +293,8 @@ class Clip:
     rank: int | None = None  # position in the highlight list when generated
     version: int = 1
     id: str = field(default_factory=new_id)
+    # Per-part game audio set in the editor, parallel to segments: {"gain_db", "mute"}
+    segment_audio: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def duration_s(self) -> float:

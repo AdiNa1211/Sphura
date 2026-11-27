@@ -26,6 +26,7 @@ from sphura.config import Settings
 from sphura.container import LocalEngine, build_local_engine
 from sphura.domain.clip_codec import clip_to_dict
 from sphura.domain.errors import (
+    ConflictError,
     InvalidMediaError,
     NotFoundError,
     SphuraError,
@@ -105,7 +106,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(SphuraError)
     async def _domain_error(_: Request, exc: SphuraError) -> JSONResponse:
-        codes = {NotFoundError: 404, InvalidMediaError: 422, ToolchainError: 503}
+        codes = {NotFoundError: 404, InvalidMediaError: 422, ToolchainError: 503,
+                 ConflictError: 409}  # fmt: skip
         code = next((c for t, c in codes.items() if isinstance(exc, t)), 400)
         return JSONResponse(
             status_code=code, content={"error": type(exc).__name__, "detail": str(exc)}

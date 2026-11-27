@@ -461,9 +461,11 @@ class LoreService:
         key = L.plain(entity)
         old = self._repo.page(game, key, source)
         fresh = old and datetime.fromisoformat(old["fetched_at"]) > datetime.now(UTC) - PAGE_MAX_AGE
-        if old and fresh and not force and old["status"] != "failed":
-            return
         cfg = L.GAMES[game]
+        ctx = f"{cfg['name']} {cfg.get('myth', '')}"
+        wrong = old and not _fits_context(str(old["data"].get("page") or ""), ctx)
+        if old and fresh and not force and old["status"] != "failed" and not wrong:
+            return
         if source == "wiki":
             if not cfg["wiki"]:
                 return
@@ -479,7 +481,9 @@ class LoreService:
             query = cfg["name"] + " video game"
         try:
             titles = self._wiki.search(api, query, 6)
-            title = self._best_title(titles, entity if source != "game" else cfg["name"], source)
+            title = self._best_title(
+                titles, entity if source != "game" else cfg["name"], source, ctx
+            )
             if title is None:
                 self._repo.save_page(
                     game,
@@ -523,9 +527,18 @@ class LoreService:
             )
 
     @staticmethod
-    def _best_title(titles: list[str], entity: str, source: str) -> str | None:
+    def _best_title(titles: list[str], entity: str, source: str, context: str = "") -> str | None:
+        """Exact title first. A bracketed one ("Kratos (Soulcalibur)") only when the bracket
+        is about this game or its myths: crossover pages describe another game's version."""
         want = L.plain(entity)
-        ok = [t for t in titles if source != "myth" or not _NOT_MYTH.search(t)]
+        ok = [
+            t
+            for t in titles
+            if (source != "myth" or not _NOT_MYTH.search(t)) and _fits_context(t, context)
+        ]
+        for t in ok:
+            if L.plain(t) == want:
+                return t
         for t in ok:
             if L.plain(re.sub(r"\(.*?\)", "", t)) == want:
                 return t
@@ -753,3 +766,12 @@ def _wait_for_file(ctx: JobContext, path: Path, wait_s: float = 60) -> None:
                               "add it to SPHURA again from its new place.")  # fmt: skip
         ctx.report("waiting", 0.0, f"Waiting for {path.anchor or 'the drive'} to respond")
         time.sleep(3)
+
+
+def _fits_context(title: str, context: str) -> bool:
+    """A bracketed title must name this game or its myths: "Kratos (Soulcalibur)" doesn't."""
+    q = re.findall(r"\((.*?)\)", title)
+    if not q:
+        return True
+    good = {w for w in L.plain(f"{context} norse mythology character").split() if len(w) > 2}
+    return any(w in good for w in L.plain(" ".join(q)).split())

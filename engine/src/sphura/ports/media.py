@@ -100,6 +100,7 @@ class VideoRenderer(Protocol):
         audio_stream: int | None,
         out_path: Path,
         on_progress: Callable[[float], None],
+        draft: bool = False,
     ) -> RenderOutcome: ...
 
 
